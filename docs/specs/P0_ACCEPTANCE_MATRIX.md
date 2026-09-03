@@ -86,9 +86,15 @@ build context를 재현해 확인했고, `COPY db ./db`를 추가해 고쳤다.
 재발을 막기 위해 `backend.yml`에 `docker` job을 두었다: 이미지를 빌드하고, 그 안에서
 `verify-golden`과 `where`를 돌리고, API로 run을 하나 계산한 뒤 **컨테이너를 재시작하고 같은
 run을 다시 읽는다**. 마지막 단계가 packaged SQLite tier와 "컨테이너가 사는 동안만 영속처럼
-보이는" in-memory repository를 구분한다. Docker가 없는 이 환경에서는 그 assertion들을
-uvicorn으로 재현해 endpoint 모양과 값(`payload_allocated_bytes = 145,000,000`, 프로세스 재시작
-후에도 동일)을 확인했고, Docker 자체는 CI가 검증한다.
+보이는" in-memory repository를 구분한다.
+
+이 job은 커밋 `edcad89`에서 실제로 통과했다. 즉 이미지가 빌드되고, 그 안에서 CLI가 돌고,
+API가 계산한 run이 컨테이너 재시작 뒤에도 조회된다는 것은 실행된 근거다. Docker가 없는 이
+감사 환경에서는 그 assertion들을 uvicorn으로 먼저 재현해 endpoint 모양과 값을 확인했고
+(`payload_allocated_bytes = 145,000,000`, 프로세스 재시작 후에도 동일), Docker 자체는 CI가
+확인했다.
+
+같은 실행에서 `audit` job(`pip-audit`)도 통과했다. DoD #8의 나머지 절반이 채워진 시점이다.
 
 ## 별도 release gate
 
