@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from semantix_passbudget.adapters.memory_repository import InMemoryRunRepository
+from semantix_passbudget.adapters.orbit.provider import OrbitContactProvider
 from semantix_passbudget.adapters.synthetic_contact import SyntheticContactProvider
 from semantix_passbudget.application.comparison import compare_results
 from semantix_passbudget.application.composition import (
@@ -25,6 +26,7 @@ from semantix_passbudget.domain.enums import (
 )
 from semantix_passbudget.domain.errors import DomainValidationError
 from semantix_passbudget.domain.models import StorageConfig
+from semantix_passbudget.domain.time import UtcInstant
 from semantix_passbudget.interfaces.dto import load_fixture_source
 
 
@@ -59,13 +61,20 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _service() -> RunScenarioService:
     """Pure-calculation service. No database, no file, no server."""
-    return RunScenarioService(SyntheticContactProvider(), InMemoryRunRepository())
+    return RunScenarioService(
+        SyntheticContactProvider(),
+        InMemoryRunRepository(),
+        orbit_provider=OrbitContactProvider(),
+    )
 
 
 def _persistent_service() -> tuple[RunScenarioService, str]:
     """Service backed by the configured local store. SQLite unless told otherwise."""
     repository, tier = build_run_repository(default="sqlite")
-    return RunScenarioService(SyntheticContactProvider(), repository), tier
+    service = RunScenarioService(
+        SyntheticContactProvider(), repository, orbit_provider=OrbitContactProvider()
+    )
+    return service, tier
 
 
 def _storage(enforcement: ReserveEnforcement) -> StorageConfig:
@@ -96,6 +105,7 @@ def _verify_golden(service: RunScenarioService) -> dict[str, Any]:
     queue = service.run(queue_snapshot)
     hard = service.run(replace(queue_snapshot, storage=_storage(ReserveEnforcement.HARD)))
     soft = service.run(replace(queue_snapshot, storage=_storage(ReserveEnforcement.SOFT)))
+    orbit = service.run(load_fixture_source("PB-GOLDEN-ORB-01").to_domain())
 
     core_metrics = cast(dict[str, Any], core.result["metrics"])
     stations = {
@@ -169,6 +179,7 @@ def _verify_golden(service: RunScenarioService) -> dict[str, Any]:
         and ack_storage["released_bytes"] == 5_000_000,
         "synthetic-acknowledgement storage result differs from the AC-25B oracle",
     )
+    orbit_summary = _verify_orbit_golden(orbit)
     return {
         "core": {
             "fixture_id": core.result["fixture_id"],
@@ -217,6 +228,83 @@ def _verify_golden(service: RunScenarioService) -> dict[str, Any]:
             "ack_released_bytes": ack_storage["released_bytes"],
             "result_content_hash": ack.result_content_hash,
         },
+        "orbit": orbit_summary,
+    }
+
+
+#: Effective downlink used by PB-GOLDEN-ORB-01: 2 Mbit/s pre-loss * 1/2 efficiency = 125000 B/s.
+_ORBIT_GOLDEN_EFFECTIVE_BYTES_PER_S = 125_000
+
+
+def _verify_orbit_golden(orbit: Any) -> dict[str, Any]:
+    """Check the full ORBIT_DERIVED flow end to end.
+
+    The substantive anchors are not copied product numbers. The pass counts are the ones NASA GMAT
+    produced for this synthetic orbit and these two stations in `EVD-ORB-02` window W1 (MIDLAT 4,
+    EQUATOR 3), so they check the product engine against the independent oracle, not against itself.
+    The capacity is checked by the arithmetic identity contact_time x effective_rate, and the
+    selection outcome is checked by which model outputs were sent.
+    """
+    result = cast(dict[str, Any], orbit.result)
+    metrics = cast(dict[str, Any], result["metrics"])
+    _expect(
+        result["contact_source"] == "ORBIT_DERIVED",
+        "orbit golden must be an ORBIT_DERIVED run",
+    )
+    stations = {
+        station["station_key"]: station["geometric_contact_count"]
+        for station in cast(list[dict[str, Any]], metrics["stations"])
+    }
+    _expect(
+        stations == {"SYN-GS-MIDLAT": 4, "SYN-GS-EQUATOR": 3},
+        "orbit golden daily pass counts differ from the GMAT oracle (EVD-ORB-02 W1)",
+    )
+    _expect(
+        metrics["geometric_contact_count"] == 7,
+        "orbit golden must report seven daily passes",
+    )
+    # Arithmetic identity: every candidate session's capacity equals its modeled active seconds
+    # times the effective byte rate, floored once. This is the hand-computable check the spec asks
+    # for, applied to the engine-derived durations rather than to hard-coded numbers.
+    for candidate in cast(list[dict[str, Any]], result["candidate_sessions"]):
+        start, end = candidate["usable_start"], candidate["usable_end"]
+        if start is None or end is None:
+            continue
+        active_us = UtcInstant.parse(end).microseconds - UtcInstant.parse(start).microseconds
+        expected = active_us * _ORBIT_GOLDEN_EFFECTIVE_BYTES_PER_S // 1_000_000
+        _expect(
+            candidate["capacity_bytes"] == expected,
+            "orbit golden capacity is not contact_time x effective_rate for a candidate session",
+        )
+    progress = {
+        item["payload_key"]: item for item in cast(list[dict[str, Any]], result["payload_progress"])
+    }
+    _expect(
+        progress["WILDFIRE-DETECT"]["state"] == "COMPLETED"
+        and progress["FIGHTER-TRACK"]["state"] == "COMPLETED"
+        and progress["SHIP-DETECT"]["state"] == "PARTIAL",
+        "orbit golden selection differs: wildfire and fighter must complete and ship stay partial",
+    )
+    _expect(
+        result["optimization"]["globally_optimal"] is True,
+        "orbit golden must be globally optimal under EXACT_GLOBAL",
+    )
+    _expect(
+        "가정 기반 추정값" in result["safety_notice"],
+        "orbit golden must carry the assumption-based (not KMU performance) safety notice",
+    )
+    return {
+        "fixture_id": result["fixture_id"],
+        "contact_source": result["contact_source"],
+        "daily_pass_count": metrics["geometric_contact_count"],
+        "daily_contact_time_us": metrics["geometric_duration_us"],
+        "stations": stations,
+        "daily_capacity_bytes": metrics["candidate_capacity_sum_bytes"],
+        "payload_allocated_bytes": metrics["payload_allocated_bytes"],
+        "payload_remaining_bytes": metrics["payload_remaining_bytes"],
+        "sent": {key: progress[key]["state"] for key in sorted(progress)},
+        "input_snapshot_hash": orbit.input_snapshot_hash,
+        "result_content_hash": orbit.result_content_hash,
     }
 
 

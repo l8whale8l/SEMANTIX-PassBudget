@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .enums import CalculationStatus, DecisionGrade, ReasonCode
-from .time import TimeInterval
+from .time import TimeInterval, UtcInstant
 
 
 def interval_dict(interval: TimeInterval | None) -> dict[str, str] | None:
@@ -23,9 +23,15 @@ class ContactResult:
     calculation_status: CalculationStatus
     decision_grade: DecisionGrade
     reason_codes: tuple[ReasonCode, ...]
+    #: Orbit geometry, present only for ORBIT_DERIVED contacts. Kept out of the emitted result for
+    #: SYNTHETIC_INJECTED contacts so their canonical result bytes are unchanged.
+    maximum_elevation_udeg: int | None = None
+    maximum_elevation_time: UtcInstant | None = None
+    clipped_start: bool = False
+    clipped_end: bool = False
 
     def geometric_dict(self) -> dict[str, Any]:
-        return {
+        base: dict[str, Any] = {
             "stable_key": f"geometric/{self.stable_key}",
             "station_key": self.station_key,
             "true_aos": self.true_interval.start.isoformat(),
@@ -33,6 +39,12 @@ class ContactResult:
             "calculation_status": CalculationStatus.COMPUTED.value,
             "decision_grade": DecisionGrade.CONCEPT_ONLY.value,
         }
+        if self.maximum_elevation_udeg is not None and self.maximum_elevation_time is not None:
+            base["maximum_elevation_udeg"] = self.maximum_elevation_udeg
+            base["maximum_elevation_at"] = self.maximum_elevation_time.isoformat()
+            base["clipped_start"] = self.clipped_start
+            base["clipped_end"] = self.clipped_end
+        return base
 
     def modeled_dict(self) -> dict[str, Any]:
         return {

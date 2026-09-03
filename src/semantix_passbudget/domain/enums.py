@@ -152,6 +152,7 @@ class WarningCode(StrEnum):
     UNMODELED_PHYSICAL_CONSTRAINTS = "UNMODELED_PHYSICAL_CONSTRAINTS"
     SYNTHETIC_TEST_DELIVERY_EVENTS_ONLY = "SYNTHETIC_TEST_DELIVERY_EVENTS_ONLY"
     ASSUMED_DELIVERY_PROXY_RESULT = "ASSUMED_DELIVERY_PROXY_RESULT"
+    NOT_GLOBALLY_OPTIMAL = "NOT_GLOBALLY_OPTIMAL"
 
 
 #: Warnings that every P0 result carries. Conditional warnings are appended by the run.
@@ -165,6 +166,27 @@ SAFETY_WARNING_CODES: tuple[WarningCode, ...] = (
 )
 
 
+class ExecutionStrategy(StrEnum):
+    """How `QUEUE_AWARE` resolves overlapping opportunities. A semantic input, never a knob.
+
+    It changes what the result *means*, so it is part of the canonical input, the result, the
+    provenance and every hash. `EXACT_GLOBAL` is the default and the only mode that establishes
+    optimality. `BOUNDED_APPROXIMATE` must be chosen deliberately: an exact search that exceeds
+    its budget fails by name and never falls back to this on its own.
+    """
+
+    EXACT_GLOBAL = "EXACT_GLOBAL"
+    BOUNDED_APPROXIMATE = "BOUNDED_APPROXIMATE"
+
+
+class OptimizationStatus(StrEnum):
+    """What the run established about the selection, as opposed to what was asked for."""
+
+    EXACT = "EXACT"
+    APPROXIMATE = "APPROXIMATE"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
+
+
 class ComparisonReasonCode(StrEnum):
     METRIC_NOT_COMPUTED_IN_BOTH_RUNS = "METRIC_NOT_COMPUTED_IN_BOTH_RUNS"
     METRIC_DEFINITION_MISMATCH = "METRIC_DEFINITION_MISMATCH"
@@ -175,6 +197,8 @@ class ComparisonReasonCode(StrEnum):
     #: v1.4 golden-design name; EVIDENCE_GRADE_MISMATCH is the P0 spec alias. Both are emitted.
     COMPARABLE_WITH_EVIDENCE_DIFFERENCE = "COMPARABLE_WITH_EVIDENCE_DIFFERENCE"
     EVIDENCE_GRADE_MISMATCH = "EVIDENCE_GRADE_MISMATCH"
+    #: One side established optimality and the other did not; the numbers are not like for like.
+    OPTIMIZATION_GRADE_MISMATCH = "OPTIMIZATION_GRADE_MISMATCH"
 
 
 class RateScope(StrEnum):
@@ -219,6 +243,19 @@ class ContactSource(StrEnum):
 
     ORBIT_DERIVED = "ORBIT_DERIVED"
     SYNTHETIC_INJECTED = "SYNTHETIC_INJECTED"
+
+
+class OrbitKind(StrEnum):
+    """Which supported orbit assumption an ``ORBIT_DERIVED`` scenario carries.
+
+    Both are propagated by the pure-Python engine behind the ``ContactProvider`` port; neither
+    describes a real KMU-ET02 orbit. ``GP_TLE`` propagates a user-supplied two-line element set
+    with SGP4; ``TWO_BODY_V1`` propagates literal Keplerian elements under point-mass gravity.
+    See ADR-0004 and ``docs/specs/ORBIT_VERIFICATION_CONTRACT.md``.
+    """
+
+    GP_TLE = "GP_TLE"
+    TWO_BODY_V1 = "TWO_BODY_V1"
 
 
 class ReleaseTrigger(StrEnum):

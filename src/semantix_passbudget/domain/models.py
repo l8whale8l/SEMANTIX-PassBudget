@@ -5,6 +5,7 @@ from fractions import Fraction
 from itertools import pairwise
 from typing import cast
 
+from . import limits
 from .enums import (
     AccountedEffect,
     AdmissionPolicy,
@@ -17,6 +18,8 @@ from .enums import (
     DependencyKind,
     EventOrigin,
     EvidenceState,
+    ExecutionStrategy,
+    OrbitKind,
     PostDeadlineAction,
     ProducerKind,
     RateScope,
@@ -221,18 +224,193 @@ class CapacityProfile:
         )
 
 
+#: WGS-84 geodetic ranges, expressed in the exact integer micro-units the canonical hash accepts.
+#: Latitude is south-negative, longitude is east-positive (contract §6), height is above the
+#: WGS-84 ellipsoid, and the elevation mask is a non-negative angle below 90 degrees.
+MIN_LATITUDE_UDEG = -90_000_000
+MAX_LATITUDE_UDEG = 90_000_000
+MIN_LONGITUDE_UDEG = -180_000_000
+MAX_LONGITUDE_UDEG = 180_000_000
+MIN_ELLIPSOIDAL_HEIGHT_MM = -1_000_000
+MAX_ELLIPSOIDAL_HEIGHT_MM = 10_000_000_000
+MAX_ELEVATION_MASK_UDEG = 90_000_000
+
+
+@dataclass(frozen=True, slots=True)
+class GeodeticSite:
+    """A ground station's WGS-84 position and its constant elevation mask.
+
+    Present only for ``ORBIT_DERIVED`` scenarios; forbidden for ``SYNTHETIC_INJECTED`` ones, where
+    a contact carries no station geometry (ADR-0002). Every value is an exact integer in a
+    micro-unit so it can enter the canonical input hash without a binary float. The orbit adapter
+    converts these to floating-point degrees and metres at its own boundary, per ADR-0001.
+    """
+
+    latitude_udeg: int
+    longitude_east_udeg: int
+    ellipsoidal_height_mm: int
+    minimum_elevation_udeg: int
+
+    def validate(self, station_key: str) -> None:
+        if not MIN_LATITUDE_UDEG <= self.latitude_udeg <= MAX_LATITUDE_UDEG:
+            self._invalid(station_key, "latitude is bounded to [-90, +90] degrees.")
+        if not MIN_LONGITUDE_UDEG <= self.longitude_east_udeg <= MAX_LONGITUDE_UDEG:
+            self._invalid(station_key, "east longitude is bounded to [-180, +180] degrees.")
+        if not MIN_ELLIPSOIDAL_HEIGHT_MM <= self.ellipsoidal_height_mm <= MAX_ELLIPSOIDAL_HEIGHT_MM:
+            self._invalid(station_key, "ellipsoidal height is out of the accepted range.")
+        if not 0 <= self.minimum_elevation_udeg < MAX_ELEVATION_MASK_UDEG:
+            self._invalid(station_key, "minimum elevation is bounded to [0, 90) degrees.")
+
+    @staticmethod
+    def _invalid(station_key: str, message: str) -> None:
+        raise DomainValidationError(
+            ErrorDetail(
+                code="INVALID_STATION_SITE",
+                message=message,
+                scope="scenario",
+                field_paths=(f"stations.{station_key}.site",),
+                affected_branches=("contact", "capacity", "schedule"),
+            )
+        )
+
+
 @dataclass(frozen=True, slots=True)
 class Station:
     stable_key: str
     preference_rank: int
     capacity: CapacityProfile
+    #: WGS-84 position and elevation mask. Required for ORBIT_DERIVED, forbidden otherwise.
+    site: GeodeticSite | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class TleElements:
+    """A two-line element set supplied as request data, propagated with SGP4.
+
+    The lines are stored verbatim as strings (never re-parsed into floats), so they are exact
+    canonical input. A user-supplied TLE describes whatever object the user chose; it is never a
+    KMU-ET02 orbit and no result derived from it is a KMU performance figure.
+    """
+
+    line_1: str
+    line_2: str
+
+    def validate(self) -> None:
+        for ordinal, line in ((1, self.line_1), (2, self.line_2)):
+            if len(line) != 69 or not line.startswith(f"{ordinal} "):
+                raise DomainValidationError(
+                    ErrorDetail(
+                        code="INVALID_TLE",
+                        message="Each TLE line must be 69 chars and begin with its line number.",
+                        scope="scenario",
+                        field_paths=(f"orbit.tle.line_{ordinal}",),
+                        affected_branches=("contact",),
+                    )
+                )
+
+
+@dataclass(frozen=True, slots=True)
+class TwoBodyElements:
+    """Literal Keplerian elements propagated under point-mass gravity (``TWO_BODY_V1``).
+
+    Every field is an exact integer micro-unit so the assumption is canonical input, matching the
+    frozen ``EVD-ORB-02`` reference orbit. This is a synthetic reference orbit, not a spacecraft.
+    """
+
+    epoch: UtcInstant
+    semi_major_axis_mm: int
+    eccentricity_ppb: int
+    inclination_udeg: int
+    raan_udeg: int
+    argument_of_perigee_udeg: int
+    true_anomaly_udeg: int
+    mu_m3_per_s2: int
+
+    def validate(self) -> None:
+        if self.semi_major_axis_mm <= 0 or self.mu_m3_per_s2 <= 0:
+            self._invalid("Semi-major axis and gravitational parameter must be positive.")
+        # P0 supports the circular reference profile only; a non-zero eccentricity would need the
+        # eccentric-anomaly seeding that circular_state_from_elements does not carry.
+        if self.eccentricity_ppb != 0:
+            self._invalid("TWO_BODY_V1 supports only the circular profile (eccentricity = 0).")
+        if not 0 <= self.inclination_udeg <= 180_000_000:
+            self._invalid("Inclination is bounded to [0, 180] degrees.")
+        for name, value in (
+            ("raan", self.raan_udeg),
+            ("argument_of_perigee", self.argument_of_perigee_udeg),
+            ("true_anomaly", self.true_anomaly_udeg),
+        ):
+            if not 0 <= value < 360_000_000:
+                self._invalid(f"{name} is bounded to [0, 360) degrees.")
+
+    @staticmethod
+    def _invalid(message: str) -> None:
+        raise DomainValidationError(
+            ErrorDetail(
+                code="INVALID_TWO_BODY_ELEMENTS",
+                message=message,
+                scope="scenario",
+                field_paths=("orbit.two_body",),
+                affected_branches=("contact",),
+            )
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class OrbitSpec:
+    """The orbit assumption an ``ORBIT_DERIVED`` scenario propagates to generate contact windows.
+
+    Exactly one of ``tle`` / ``two_body`` is present, matching ``kind``. The engine revisions are
+    not carried here: they are stated by the provider that actually computes the passes, so a user
+    cannot mislabel which algorithm produced a result.
+    """
+
+    kind: OrbitKind
+    tle: TleElements | None = None
+    two_body: TwoBodyElements | None = None
+
+    def validate(self) -> None:
+        if self.kind is OrbitKind.GP_TLE:
+            if self.tle is None or self.two_body is not None:
+                self._invalid("GP_TLE requires TLE lines and forbids two-body elements.")
+            assert self.tle is not None
+            self.tle.validate()
+        else:
+            if self.two_body is None or self.tle is not None:
+                self._invalid("TWO_BODY_V1 requires two-body elements and forbids TLE lines.")
+            assert self.two_body is not None
+            self.two_body.validate()
+
+    @staticmethod
+    def _invalid(message: str) -> None:
+        raise DomainValidationError(
+            ErrorDetail(
+                code="INVALID_ORBIT_SPEC",
+                message=message,
+                scope="scenario",
+                field_paths=("orbit",),
+                affected_branches=("contact", "capacity", "schedule"),
+            )
+        )
 
 
 @dataclass(frozen=True, slots=True)
 class SyntheticContact:
+    """One contact interval fed into the capacity pipeline.
+
+    The name is historical: this is the single contact type for both sources. For
+    ``SYNTHETIC_INJECTED`` the geometry fields stay ``None`` (a synthetic contact has no
+    propagator and no elevation). For ``ORBIT_DERIVED`` the provider fills them from the pass it
+    computed, and they surface in the geometric-access result and its persisted row.
+    """
+
     stable_key: str
     station_key: str
     true_interval: TimeInterval
+    maximum_elevation_udeg: int | None = None
+    maximum_elevation_time: UtcInstant | None = None
+    clipped_start: bool = False
+    clipped_end: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -422,8 +600,158 @@ class ScenarioSnapshot:
     storage: StorageConfig = DISABLED_STORAGE
     contact_source: ContactSource = ContactSource.SYNTHETIC_INJECTED
     synthetic_delivery_events: tuple[SyntheticDeliveryEvent, ...] = ()
+    execution_strategy: ExecutionStrategy = ExecutionStrategy.EXACT_GLOBAL
+    #: The orbit assumption for ORBIT_DERIVED scenarios. Required then, forbidden otherwise.
+    orbit: OrbitSpec | None = None
+
+    def _enforce_input_limits(self) -> None:
+        """Refuse an oversized scenario before any branch runs.
+
+        This sits at the top of `validate()` rather than in a DTO because every entry point --
+        HTTP, CLI and a direct domain caller -- reaches `validate()`, and only some of them reach
+        a DTO. An oversized input is refused whole: it is not truncated, and it is not the same
+        thing as a branch-local calculation failure, which leaves the run PARTIAL with the
+        successful branches readable. See `domain/limits.py`.
+        """
+        limits.enforce(
+            limit_name="analysis window",
+            actual=self.analysis_window.end.microseconds - self.analysis_window.start.microseconds,
+            maximum=limits.MAX_ANALYSIS_WINDOW_US,
+            unit="microseconds",
+            scope="scenario",
+            field_path="analysis_window",
+            affected_branches=("contact", "capacity", "schedule", "queue", "storage"),
+        )
+        limits.enforce(
+            limit_name="station count",
+            actual=len(self.stations),
+            maximum=limits.MAX_STATIONS,
+            unit="stations",
+            scope="scenario",
+            field_path="stations",
+            affected_branches=("contact", "capacity", "schedule"),
+        )
+        limits.enforce(
+            limit_name="contact count",
+            actual=len(self.contacts),
+            maximum=limits.MAX_CONTACTS,
+            unit="contacts",
+            scope="contact",
+            field_path="contacts",
+            affected_branches=("contact", "capacity", "schedule"),
+        )
+        limits.enforce(
+            limit_name="payload count",
+            actual=len(self.payloads),
+            maximum=limits.MAX_PAYLOADS,
+            unit="payloads",
+            scope="queue",
+            field_path="payloads",
+            affected_branches=("schedule", "queue", "storage"),
+        )
+        limits.enforce(
+            limit_name="payload dependency count",
+            actual=len(self.dependencies),
+            maximum=limits.MAX_DEPENDENCIES,
+            unit="dependencies",
+            scope="queue",
+            field_path="dependencies",
+            affected_branches=("schedule", "queue"),
+        )
+        limits.enforce(
+            limit_name="synthetic delivery event count",
+            actual=len(self.synthetic_delivery_events),
+            maximum=limits.MAX_SYNTHETIC_DELIVERY_EVENTS,
+            unit="events",
+            scope="storage",
+            field_path="synthetic_delivery_events",
+            affected_branches=("storage",),
+        )
+        for station in self.stations:
+            limits.enforce(
+                limit_name="rate segment count for one station",
+                actual=len(station.capacity.rate_segments),
+                maximum=limits.MAX_RATE_SEGMENTS_PER_STATION,
+                unit="segments",
+                scope="capacity",
+                field_path="stations.capacity.rate_segments",
+                affected_branches=("capacity",),
+            )
+            limits.enforce(
+                limit_name="time reserve count for one station",
+                actual=len(station.capacity.time_reserves),
+                maximum=limits.MAX_TIME_RESERVES_PER_STATION,
+                unit="reserves",
+                scope="capacity",
+                field_path="stations.capacity.time_reserves",
+                affected_branches=("capacity",),
+            )
+
+    def _validate_contact_source(self) -> None:
+        """Enforce the ADR-0002 provenance split at the domain boundary.
+
+        ORBIT_DERIVED needs an orbit assumption and full station geometry, and the provider
+        generates its contacts, so injecting a contact list is a conflict. SYNTHETIC_INJECTED is
+        the mirror image: no orbit, no station geometry, no fabricated elevation. The database
+        CHECK constraints (ADR-0002) enforce the same rule at the row level; keeping both in step
+        is deliberate.
+        """
+        if self.contact_source is ContactSource.ORBIT_DERIVED:
+            if self.orbit is None:
+                self._source_error(
+                    "MISSING_ORBIT_SPEC",
+                    "ORBIT_DERIVED requires an orbit assumption to propagate.",
+                    ("orbit",),
+                )
+            if self.contacts:
+                self._source_error(
+                    "ORBIT_DERIVED_CONTACTS_ARE_GENERATED",
+                    "ORBIT_DERIVED generates its own contacts; an injected contact list is a "
+                    "conflict. Provide the orbit and stations, not contacts.",
+                    ("contacts",),
+                )
+            for station in self.stations:
+                if station.site is None:
+                    self._source_error(
+                        "MISSING_STATION_SITE",
+                        "ORBIT_DERIVED requires WGS-84 coordinates and an elevation mask for "
+                        f"every station; {station.stable_key} has none.",
+                        ("stations.site",),
+                    )
+                else:
+                    station.site.validate(station.stable_key)
+            assert self.orbit is not None
+            self.orbit.validate()
+        else:
+            if self.orbit is not None:
+                self._source_error(
+                    "SYNTHETIC_FORBIDS_ORBIT_SPEC",
+                    "SYNTHETIC_INJECTED contacts carry no orbit assumption.",
+                    ("orbit",),
+                )
+            for station in self.stations:
+                if station.site is not None:
+                    self._source_error(
+                        "SYNTHETIC_FORBIDS_STATION_SITE",
+                        "SYNTHETIC_INJECTED contacts carry no station geometry; "
+                        f"{station.stable_key} declares a site.",
+                        ("stations.site",),
+                    )
+
+    @staticmethod
+    def _source_error(code: str, message: str, field_paths: tuple[str, ...]) -> None:
+        raise DomainValidationError(
+            ErrorDetail(
+                code=code,
+                message=message,
+                scope="scenario",
+                field_paths=field_paths,
+                affected_branches=("contact", "capacity", "schedule"),
+            )
+        )
 
     def validate(self) -> None:
+        self._enforce_input_limits()
         if self.analysis_mode is AnalysisMode.NETWORK_ONLY and (
             self.payloads
             or self.policy_revision_id is not None
@@ -435,6 +763,23 @@ class ScenarioSnapshot:
                     message="NETWORK_ONLY excludes queue policy, payload, and storage inputs.",
                     scope="scenario",
                     field_paths=("analysis_mode", "payloads", "storage"),
+                    affected_branches=("schedule",),
+                )
+            )
+        if (
+            self.analysis_mode is not AnalysisMode.QUEUE_AWARE
+            and self.execution_strategy is not ExecutionStrategy.EXACT_GLOBAL
+        ):
+            raise DomainValidationError(
+                ErrorDetail(
+                    code="EXECUTION_STRATEGY_NOT_APPLICABLE",
+                    message=(
+                        "Only QUEUE_AWARE resolves overlap by search. NETWORK_ONLY is solved "
+                        "exactly by the maximum-capacity dynamic program, so asking for a "
+                        "bounded approximation there would label an exact result approximate."
+                    ),
+                    scope="scenario",
+                    field_paths=("analysis_mode", "execution_strategy"),
                     affected_branches=("schedule",),
                 )
             )
@@ -537,17 +882,7 @@ class ScenarioSnapshot:
                         affected_branches=("contact",),
                     )
                 )
-        if self.contact_source is not ContactSource.SYNTHETIC_INJECTED:
-            raise DomainValidationError(
-                ErrorDetail(
-                    code="UNSUPPORTED_CONTACT_SOURCE",
-                    message="P0 has no released orbit provider; ORBIT_DERIVED contacts stay "
-                    "blocked until PB-GOLDEN-ORB-01 evidence exists.",
-                    scope="scenario",
-                    field_paths=("contact_source",),
-                    affected_branches=("contact", "capacity", "schedule"),
-                )
-            )
+        self._validate_contact_source()
         if self.synthetic_delivery_events:
             if self.storage.release_trigger is not ReleaseTrigger.ACKED:
                 raise DomainValidationError(

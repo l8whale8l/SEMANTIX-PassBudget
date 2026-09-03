@@ -195,6 +195,11 @@ class SqliteRunRepository:
         storage = snapshot.storage
         enabled = storage.mode is StorageMode.ENABLED
         manifest = self._manifest()
+        orbit_derived = snapshot.contact_source is ContactSource.ORBIT_DERIVED
+        # ADR-0002 provenance split: an orbit scenario names an orbit revision and no synthetic
+        # provider; a synthetic scenario is the mirror image. The database CHECK enforces the same.
+        synthetic_provider_revision = None if orbit_derived else snapshot.source_revision_id[:96]
+        orbit_revision_id = snapshot.source_revision_id[:96] if orbit_derived else None
         connection.execute(
             "INSERT INTO scenario_revision ("
             " id, scenario_id, revision_no, lifecycle_status, schema_version, decision_question,"
@@ -205,7 +210,7 @@ class SqliteRunRepository:
             " reclaim_granularity, release_trigger, delivery_assumption,"
             " overlap_objective_revision, tie_break_profile_revision, event_order_revision,"
             " time_quantization_revision, display_format_revision, semantic_hash, published_at_us"
-            ") VALUES (?, ?, ?, 'DRAFT', ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,"
+            ") VALUES (?, ?, ?, 'DRAFT', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,"
             " ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 revision_id,
@@ -216,8 +221,9 @@ class SqliteRunRepository:
                 snapshot.analysis_window.start.microseconds,
                 snapshot.analysis_window.end.microseconds,
                 snapshot.analysis_mode.value,
-                ContactSource.SYNTHETIC_INJECTED.value,
-                snapshot.source_revision_id[:96],
+                snapshot.contact_source.value,
+                synthetic_provider_revision,
+                orbit_revision_id,
                 graph.policy_key,
                 graph.spacecraft_key,
                 storage.mode.value,
@@ -280,7 +286,7 @@ class SqliteRunRepository:
                     station.stable_key,
                     station.preference_rank,
                     station.minimum_elevation_udeg,
-                    ContactSource.SYNTHETIC_INJECTED.value,
+                    snapshot.contact_source.value,
                     station.communication_key,
                     station.ground_station_key,
                 ),

@@ -95,10 +95,14 @@ def result_rows(result: dict[str, Any]) -> PersistedRows:
                 "station_key": item["station_key"],
                 "true_aos": item["true_aos"],
                 "true_los": item["true_los"],
+                # The reported interval is already clipped to the window, so the in-window interval
+                # equals [true_aos, true_los). An ORBIT_DERIVED access also carries a peak elevation
+                # and its time; a SYNTHETIC one omits those keys, so the defaults reproduce the
+                # original synthetic row byte for byte.
                 "clipped_start": item["true_aos"],
                 "clipped_end": item["true_los"],
-                "maximum_elevation_udeg": None,
-                "maximum_elevation_at": None,
+                "maximum_elevation_udeg": item.get("maximum_elevation_udeg"),
+                "maximum_elevation_at": item.get("maximum_elevation_at"),
                 "contact_source": contact_source,
             }
         )

@@ -26,6 +26,7 @@ from typing import Literal
 
 from semantix_passbudget.adapters.memory_catalog import InMemoryCatalogRepository
 from semantix_passbudget.adapters.memory_repository import InMemoryRunRepository
+from semantix_passbudget.adapters.orbit.provider import OrbitContactProvider
 from semantix_passbudget.adapters.synthetic_contact import SyntheticContactProvider
 from semantix_passbudget.application.catalog import CatalogService
 from semantix_passbudget.application.service import RunScenarioService
@@ -167,7 +168,9 @@ def build_application(
     catalog_repository = InMemoryCatalogRepository()
     catalog = CatalogService(catalog_repository)
     repository, persistence = build_run_repository(default=default_persistence)
-    runs = RunScenarioService(SyntheticContactProvider(), repository)
+    runs = RunScenarioService(
+        SyntheticContactProvider(), repository, orbit_provider=OrbitContactProvider()
+    )
     database_path = getattr(repository, "path", None)
     if seed_presets:
         published_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")

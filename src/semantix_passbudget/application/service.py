@@ -12,15 +12,19 @@ from semantix_passbudget.domain.enums import (
     ContactSource,
     DecisionGrade,
     DeliveryAssumption,
+    OptimizationStatus,
     ReasonCode,
     ReleaseTrigger,
     RunStatus,
     StorageMode,
     WarningCode,
 )
+from semantix_passbudget.domain.errors import DomainValidationError, ErrorDetail
 from semantix_passbudget.domain.horizon import (
+    APPROXIMATE_OBJECTIVE_REVISION,
     MANDATORY_TARDINESS_REVISION,
     OVERLAP_OBJECTIVE_REVISION,
+    SelectionOutcome,
     select_queue_aware_nonoverlap,
 )
 from semantix_passbudget.domain.ledger import (
@@ -63,6 +67,7 @@ ENGINE_MANIFEST = {
     "time_quantization_revision": "UTC_US_HALF_EVEN_V1",
     "canonicalization_revision": CANONICALIZATION_REVISION,
     "overlap_objective_revision": OVERLAP_OBJECTIVE_REVISION,
+    "approximate_objective_revision": APPROXIMATE_OBJECTIVE_REVISION,
     "tie_break_profile_revision": TIE_BREAK_PROFILE_REVISION,
     "mandatory_tardiness_revision": MANDATORY_TARDINESS_REVISION,
     "service_class_rank_revision": SERVICE_CLASS_RANK_REVISION,
@@ -70,6 +75,32 @@ ENGINE_MANIFEST = {
     "display_format_revision": DISPLAY_FORMAT_REVISION,
     "rate_arithmetic_revision": "EXACT_RATIONAL_SUM_FLOOR_ONCE_V1",
 }
+
+#: Manifest keys a contact provider may own. A synthetic run overrides none of them, so its
+#: manifest stays byte-identical to ``ENGINE_MANIFEST`` and its golden hashes never move. An
+#: ORBIT_DERIVED run replaces exactly these with the real revisions of the propagator that ran.
+_PROVIDER_MANIFEST_KEYS = (
+    "orbit_provider_revision",
+    "constants_revision",
+    "frame_transform_revision",
+    "event_solver_revision",
+)
+
+
+def _engine_manifest(overrides: dict[str, str] | Any) -> dict[str, Any]:
+    """The base manifest with a provider's owned revisions overlaid.
+
+    Only the four provider-owned keys may be overridden, and an unknown key is refused rather than
+    silently widening the manifest, so a provider cannot rewrite the scheduler or canonicalization
+    revision through this seam.
+    """
+    manifest = dict(ENGINE_MANIFEST)
+    for key, value in dict(overrides).items():
+        if key not in _PROVIDER_MANIFEST_KEYS:
+            raise ValueError(f"a contact provider may not override engine manifest key {key!r}")
+        manifest[key] = value
+    return manifest
+
 
 STAGE_ORDER = (
     "GEOMETRIC_ACCESS",
@@ -133,12 +164,33 @@ def _payload_progress_dict(item: PayloadProgress, payload: Payload) -> dict[str,
     }
 
 
+def _orbit_semantics(orbit: Any) -> dict[str, Any]:
+    """Canonical, float-free serialization of an orbit assumption for the input hash."""
+    body: dict[str, Any] = {"kind": orbit.kind.value}
+    if orbit.tle is not None:
+        body["tle"] = {"line_1": orbit.tle.line_1, "line_2": orbit.tle.line_2}
+    if orbit.two_body is not None:
+        two_body = orbit.two_body
+        body["two_body"] = {
+            "epoch": two_body.epoch.isoformat(),
+            "semi_major_axis_mm": two_body.semi_major_axis_mm,
+            "eccentricity_ppb": two_body.eccentricity_ppb,
+            "inclination_udeg": two_body.inclination_udeg,
+            "raan_udeg": two_body.raan_udeg,
+            "argument_of_perigee_udeg": two_body.argument_of_perigee_udeg,
+            "true_anomaly_udeg": two_body.true_anomaly_udeg,
+            "mu_m3_per_s2": two_body.mu_m3_per_s2,
+        }
+    return body
+
+
 def snapshot_semantics(snapshot: ScenarioSnapshot, provider_revision: str) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         "schema_version": snapshot.schema_version,
         "canonicalization_revision": CANONICALIZATION_REVISION,
         "fixture_id": snapshot.fixture_id,
         "analysis_mode": snapshot.analysis_mode.value,
+        "execution_strategy": snapshot.execution_strategy.value,
         "analysis_window": {
             "start": snapshot.analysis_window.start.isoformat(),
             "end": snapshot.analysis_window.end.isoformat(),
@@ -155,6 +207,7 @@ def snapshot_semantics(snapshot: ScenarioSnapshot, provider_revision: str) -> di
         "policy_revision_id": snapshot.policy_revision_id,
         "engine_policy_revisions": {
             "overlap_objective_revision": OVERLAP_OBJECTIVE_REVISION,
+            "approximate_objective_revision": APPROXIMATE_OBJECTIVE_REVISION,
             "tie_break_profile_revision": TIE_BREAK_PROFILE_REVISION,
             "event_order_revision": EVENT_ORDER_REVISION,
             "queue_policy_revision": QUEUE_POLICY_REVISION,
@@ -207,6 +260,20 @@ def snapshot_semantics(snapshot: ScenarioSnapshot, provider_revision: str) -> di
                         for segment in station.capacity.rate_segments
                     ],
                 },
+                # A synthetic station carries no geometry, so the key is absent and the canonical
+                # bytes are unchanged; an ORBIT_DERIVED station carries its WGS-84 site.
+                **(
+                    {
+                        "site": {
+                            "latitude_udeg": station.site.latitude_udeg,
+                            "longitude_east_udeg": station.site.longitude_east_udeg,
+                            "ellipsoidal_height_mm": station.site.ellipsoidal_height_mm,
+                            "minimum_elevation_udeg": station.site.minimum_elevation_udeg,
+                        }
+                    }
+                    if station.site is not None
+                    else {}
+                ),
             }
             for station in snapshot.stations
         ],
@@ -298,6 +365,16 @@ def snapshot_semantics(snapshot: ScenarioSnapshot, provider_revision: str) -> di
             ),
         },
     }
+    if snapshot.contact_source is ContactSource.ORBIT_DERIVED and snapshot.orbit is not None:
+        # The orbit assumption drives every generated contact, so it must enter the input hash;
+        # for ORBIT_DERIVED the contact list is empty and the orbit spec is what identifies the run.
+        payload["orbit"] = _orbit_semantics(snapshot.orbit)
+        payload["orbit_dependency"] = {
+            "presence": "PROVIDED",
+            "value_state": "KNOWN",
+            "value": {"orbit_kind": snapshot.orbit.kind.value, "assumption_only": True},
+        }
+    return payload
 
 
 def _metric_row(
@@ -330,8 +407,15 @@ def _metric_row(
 
 
 class RunScenarioService:
-    def __init__(self, contact_provider: ContactProvider, repository: RunRepository) -> None:
+    def __init__(
+        self,
+        contact_provider: ContactProvider,
+        repository: RunRepository,
+        *,
+        orbit_provider: ContactProvider | None = None,
+    ) -> None:
         self._contact_provider = contact_provider
+        self._orbit_provider = orbit_provider
         self._repository = repository
 
     @property
@@ -339,19 +423,39 @@ class RunScenarioService:
         """The injected persistence adapter. Exposed so the composition root is inspectable."""
         return self._repository
 
+    def _provider_for(self, snapshot: ScenarioSnapshot) -> ContactProvider:
+        """Pick the provider by contact source. ORBIT_DERIVED needs an injected orbit provider.
+
+        There is no fallback: an ORBIT_DERIVED snapshot on a service with no orbit provider is a
+        configuration error, never silently served by the synthetic provider (ADR-0004).
+        """
+        if snapshot.contact_source is ContactSource.ORBIT_DERIVED:
+            if self._orbit_provider is None:
+                raise DomainValidationError(
+                    ErrorDetail(
+                        code="ORBIT_PROVIDER_NOT_CONFIGURED",
+                        message="This deployment has no orbit provider; ORBIT_DERIVED cannot run "
+                        "here. Install the orbit extra and use a composition root that injects it.",
+                        scope="scenario",
+                        field_paths=("contact_source",),
+                        affected_branches=("contact", "capacity", "schedule"),
+                    )
+                )
+            return self._orbit_provider
+        return self._contact_provider
+
     def validate(self, snapshot: ScenarioSnapshot) -> str:
         snapshot.validate()
-        return semantic_hash(
-            "INPUT", snapshot_semantics(snapshot, self._contact_provider.provider_revision)
-        )
+        provider = self._provider_for(snapshot)
+        return semantic_hash("INPUT", snapshot_semantics(snapshot, provider.provider_revision))
 
     def _contacts_and_candidates(
-        self, snapshot: ScenarioSnapshot
+        self, snapshot: ScenarioSnapshot, provider: ContactProvider
     ) -> tuple[list[ContactResult], list[Candidate]]:
         stations = {station.stable_key: station for station in snapshot.stations}
         contact_results: list[ContactResult] = []
         candidates: list[Candidate] = []
-        for contact in self._contact_provider.contacts_for(snapshot):
+        for contact in provider.contacts_for(snapshot):
             station = stations[contact.station_key]
             calculated = calculate_contact_capacity(
                 contact, station.capacity, snapshot.analysis_window
@@ -365,6 +469,10 @@ class RunScenarioService:
                 calculation_status=calculated.status,
                 decision_grade=calculated.grade,
                 reason_codes=calculated.reason_codes,
+                maximum_elevation_udeg=contact.maximum_elevation_udeg,
+                maximum_elevation_time=contact.maximum_elevation_time,
+                clipped_start=contact.clipped_start,
+                clipped_end=contact.clipped_end,
             )
             contact_results.append(result)
             if (
@@ -385,20 +493,21 @@ class RunScenarioService:
 
     def run(self, snapshot: ScenarioSnapshot) -> StoredRun:
         snapshot.validate()
-        input_payload = snapshot_semantics(snapshot, self._contact_provider.provider_revision)
+        provider = self._provider_for(snapshot)
+        manifest = _engine_manifest(provider.manifest_overrides(snapshot))
+        input_payload = snapshot_semantics(snapshot, provider.provider_revision)
         input_hash = semantic_hash("INPUT", input_payload)
         stations = {station.stable_key: station for station in snapshot.stations}
         profiles = {key: station.capacity for key, station in stations.items()}
         payloads_by_key = {payload.stable_key: payload for payload in snapshot.payloads}
-        contact_results, candidates = self._contacts_and_candidates(snapshot)
+        contact_results, candidates = self._contacts_and_candidates(snapshot, provider)
 
         blocked = any(
             item.calculation_status is CalculationStatus.BLOCKED for item in contact_results
         )
         queue_mode = snapshot.analysis_mode is AnalysisMode.QUEUE_AWARE
-        selection_reasons: dict[str, ReasonCode] = {}
         if queue_mode and not blocked:
-            selected, selection_reasons = select_queue_aware_nonoverlap(
+            outcome = select_queue_aware_nonoverlap(
                 tuple(candidates),
                 profiles,
                 snapshot.payloads,
@@ -406,12 +515,26 @@ class RunScenarioService:
                 snapshot.storage,
                 snapshot.analysis_window,
                 snapshot.synthetic_delivery_events,
+                snapshot.execution_strategy,
             )
         else:
+            # NETWORK_ONLY is solved exactly by the maximum-capacity dynamic program, and a
+            # blocked run selected nothing at all: neither is an approximation.
             selected = select_maximum_nonoverlap(tuple(candidates))
-            selection_reasons = {
-                item.stable_key: ReasonCode.SESSION_SELECTED_MAX_LOGICAL_BYTES for item in selected
-            }
+            outcome = SelectionOutcome(
+                sessions=selected,
+                reasons={
+                    item.stable_key: ReasonCode.SESSION_SELECTED_MAX_LOGICAL_BYTES
+                    for item in selected
+                },
+                status=(OptimizationStatus.NOT_APPLICABLE if blocked else OptimizationStatus.EXACT),
+                globally_optimal=not blocked,
+                algorithm_revision=TIE_BREAK_PROFILE_REVISION
+                if blocked
+                else "NETWORK_ONLY_MAX_CAPACITY_DP_V1",
+            )
+        selected = outcome.sessions
+        selection_reasons = outcome.reasons
         selected_keys = {item.stable_key for item in selected}
 
         ledger: LedgerResult | None = None
@@ -436,6 +559,9 @@ class RunScenarioService:
             ledger,
             payloads_by_key,
             blocked,
+            outcome,
+            provider,
+            manifest,
         )
         result_hash = semantic_hash("RESULT", result_content)
         run_id = str(uuid4())
@@ -448,7 +574,7 @@ class RunScenarioService:
                 "input_snapshot_hash": input_hash,
                 "result_content_hash": result_hash,
                 "status": status.value,
-                "engine_manifest": ENGINE_MANIFEST,
+                "engine_manifest": manifest,
                 "stages": stages,
             },
         )
@@ -508,6 +634,27 @@ class RunScenarioService:
             for ordinal, code in enumerate(STAGE_ORDER)
         )
 
+    @staticmethod
+    def _orbit_dependency(snapshot: ScenarioSnapshot) -> dict[str, Any]:
+        """The orbit-dependency block.
+
+        SYNTHETIC_INJECTED keeps the exact ``NOT_APPLICABLE`` shape it has always emitted, so its
+        result hash never moves. ORBIT_DERIVED reports that the contact windows were computed from
+        the stated orbit assumption -- explicitly an assumption, never a KMU-ET02 orbit.
+        """
+        if snapshot.contact_source is not ContactSource.ORBIT_DERIVED or snapshot.orbit is None:
+            return {
+                "calculation_status": CalculationStatus.NOT_APPLICABLE.value,
+                "value": None,
+            }
+        return {
+            "calculation_status": CalculationStatus.COMPUTED.value,
+            "value": {
+                "orbit_kind": snapshot.orbit.kind.value,
+                "assumption_only": True,
+            },
+        }
+
     def _result_content(
         self,
         snapshot: ScenarioSnapshot,
@@ -519,6 +666,9 @@ class RunScenarioService:
         ledger: LedgerResult | None,
         payloads_by_key: dict[str, Payload],
         blocked: bool,
+        outcome: SelectionOutcome,
+        provider: ContactProvider,
+        manifest: dict[str, Any],
     ) -> dict[str, Any]:
         candidate_sum = None if blocked else sum(item.capacity_bytes for item in candidates)
         scheduled_sum = None if blocked else sum(item.capacity_bytes for item in selected)
@@ -590,6 +740,13 @@ class RunScenarioService:
             warnings.append(
                 {
                     "code": WarningCode.ASSUMED_DELIVERY_PROXY_RESULT.value,
+                    "scope_stable_key": snapshot.fixture_id,
+                }
+            )
+        if not outcome.globally_optimal and not blocked:
+            warnings.append(
+                {
+                    "code": WarningCode.NOT_GLOBALLY_OPTIMAL.value,
                     "scope_stable_key": snapshot.fixture_id,
                 }
             )
@@ -726,16 +883,20 @@ class RunScenarioService:
             ),
             "safety_notice": snapshot.safety_notice,
             "contact_source": snapshot.contact_source.value,
-            "orbit_dependency": {
-                "calculation_status": CalculationStatus.NOT_APPLICABLE.value,
-                "value": None,
+            "optimization": {
+                "execution_strategy": snapshot.execution_strategy.value,
+                "optimization_status": outcome.status.value,
+                "globally_optimal": outcome.globally_optimal,
+                "optimality_gap": outcome.optimality_gap,
+                "algorithm_revision": outcome.algorithm_revision,
             },
+            "orbit_dependency": self._orbit_dependency(snapshot),
             "provenance": {
-                "contact_provider": self._contact_provider.provider_revision,
+                "contact_provider": provider.provider_revision,
                 "source_revision_id": snapshot.source_revision_id,
                 "synthetic": snapshot.contact_source is ContactSource.SYNTHETIC_INJECTED,
             },
-            "engine_manifest": ENGINE_MANIFEST,
+            "engine_manifest": manifest,
             "geometric_accesses": [item.geometric_dict() for item in contact_results],
             "modeled_contacts": [item.modeled_dict() for item in contact_results],
             "candidate_sessions": [item.candidate_dict() for item in contact_results],

@@ -162,17 +162,19 @@ def decompose_snapshot(snapshot: ScenarioSnapshot) -> CatalogGraph:
     for station in sorted(snapshot.stations, key=lambda item: item.stable_key):
         gs_key = f"GS-{station.stable_key}"
         comm_key = f"COMM-{station.stable_key}"
+        site = station.site
         profiles.append(
             ProfileSpec(
                 stable_key=gs_key,
                 kind=ProfileKind.GROUND_STATION,
                 name=station.stable_key,
                 payload={
-                    # Synthetic injected contacts carry no station geometry. The coordinate
-                    # columns stay NULL rather than holding an invented position.
-                    "latitude_udeg": None,
-                    "longitude_udeg": None,
-                    "ellipsoidal_height_mm": None,
+                    # ORBIT_DERIVED stations carry a WGS-84 site; synthetic injected contacts carry
+                    # no station geometry, so the coordinate columns stay NULL rather than holding
+                    # an invented position.
+                    "latitude_udeg": None if site is None else site.latitude_udeg,
+                    "longitude_udeg": None if site is None else site.longitude_east_udeg,
+                    "ellipsoidal_height_mm": None if site is None else site.ellipsoidal_height_mm,
                     "rx_resource_key": f"{station.stable_key}{RX_RESOURCE_SUFFIX}",
                 },
             )
@@ -191,7 +193,7 @@ def decompose_snapshot(snapshot: ScenarioSnapshot) -> CatalogGraph:
                 ground_station_key=gs_key,
                 communication_key=comm_key,
                 preference_rank=station.preference_rank,
-                minimum_elevation_udeg=None,
+                minimum_elevation_udeg=None if site is None else site.minimum_elevation_udeg,
             )
         )
 

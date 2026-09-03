@@ -19,6 +19,8 @@ from semantix_passbudget.domain.enums import (
     DependencyKind,
     EventOrigin,
     EvidenceState,
+    ExecutionStrategy,
+    OrbitKind,
     PostDeadlineAction,
     ProducerKind,
     RateScope,
@@ -35,6 +37,8 @@ from semantix_passbudget.domain.errors import DomainValidationError, ErrorDetail
 from semantix_passbudget.domain.models import (
     CapacityProfile,
     ExactRate,
+    GeodeticSite,
+    OrbitSpec,
     Payload,
     PayloadDependency,
     RateSegment,
@@ -44,6 +48,8 @@ from semantix_passbudget.domain.models import (
     SyntheticContact,
     SyntheticDeliveryEvent,
     TimeReserve,
+    TleElements,
+    TwoBodyElements,
 )
 from semantix_passbudget.domain.time import TimeInterval, UtcInstant
 
@@ -150,13 +156,81 @@ class CapacityDTO(StrictModel):
         )
 
 
+class GeodeticSiteDTO(StrictModel):
+    """WGS-84 station geometry for an ORBIT_DERIVED scenario, in exact integer micro-units."""
+
+    latitude_udeg: int = Field(ge=-90_000_000, le=90_000_000)
+    longitude_east_udeg: int = Field(ge=-180_000_000, le=180_000_000)
+    ellipsoidal_height_mm: int = Field(ge=-1_000_000, le=10_000_000_000)
+    minimum_elevation_udeg: int = Field(ge=0, lt=90_000_000)
+
+    def to_domain(self) -> GeodeticSite:
+        return GeodeticSite(
+            latitude_udeg=self.latitude_udeg,
+            longitude_east_udeg=self.longitude_east_udeg,
+            ellipsoidal_height_mm=self.ellipsoidal_height_mm,
+            minimum_elevation_udeg=self.minimum_elevation_udeg,
+        )
+
+
 class StationDTO(StrictModel):
     stable_key: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$")
     preference_rank: int = Field(ge=0)
     capacity: CapacityDTO
+    #: Required for ORBIT_DERIVED scenarios, forbidden otherwise (enforced by the domain).
+    site: GeodeticSiteDTO | None = None
 
     def to_domain(self) -> Station:
-        return Station(self.stable_key, self.preference_rank, self.capacity.to_domain())
+        return Station(
+            self.stable_key,
+            self.preference_rank,
+            self.capacity.to_domain(),
+            site=self.site.to_domain() if self.site is not None else None,
+        )
+
+
+class TleElementsDTO(StrictModel):
+    line_1: str = Field(min_length=69, max_length=69)
+    line_2: str = Field(min_length=69, max_length=69)
+
+    def to_domain(self) -> TleElements:
+        return TleElements(line_1=self.line_1, line_2=self.line_2)
+
+
+class TwoBodyElementsDTO(StrictModel):
+    epoch: str
+    semi_major_axis_mm: int = Field(gt=0)
+    eccentricity_ppb: int = Field(ge=0)
+    inclination_udeg: int = Field(ge=0, le=180_000_000)
+    raan_udeg: int = Field(ge=0, lt=360_000_000)
+    argument_of_perigee_udeg: int = Field(ge=0, lt=360_000_000)
+    true_anomaly_udeg: int = Field(ge=0, lt=360_000_000)
+    mu_m3_per_s2: int = Field(gt=0)
+
+    def to_domain(self) -> TwoBodyElements:
+        return TwoBodyElements(
+            epoch=UtcInstant.parse(self.epoch, "orbit.two_body.epoch"),
+            semi_major_axis_mm=self.semi_major_axis_mm,
+            eccentricity_ppb=self.eccentricity_ppb,
+            inclination_udeg=self.inclination_udeg,
+            raan_udeg=self.raan_udeg,
+            argument_of_perigee_udeg=self.argument_of_perigee_udeg,
+            true_anomaly_udeg=self.true_anomaly_udeg,
+            mu_m3_per_s2=self.mu_m3_per_s2,
+        )
+
+
+class OrbitSpecDTO(StrictModel):
+    kind: OrbitKind = enum_field()
+    tle: TleElementsDTO | None = None
+    two_body: TwoBodyElementsDTO | None = None
+
+    def to_domain(self) -> OrbitSpec:
+        return OrbitSpec(
+            kind=self.kind,
+            tle=self.tle.to_domain() if self.tle is not None else None,
+            two_body=self.two_body.to_domain() if self.two_body is not None else None,
+        )
 
 
 class ContactDTO(StrictModel):
@@ -312,6 +386,10 @@ class FixtureDTO(StrictModel):
     storage: StorageDTO = Field(default_factory=StorageDTO)
     contact_source: ContactSource = enum_field(ContactSource.SYNTHETIC_INJECTED)
     synthetic_delivery_events: list[SyntheticDeliveryEventDTO] = Field(default_factory=list)
+    #: Semantic input, not a tuning knob. Omitted means the exact default.
+    execution_strategy: ExecutionStrategy = enum_field(ExecutionStrategy.EXACT_GLOBAL)
+    #: The orbit assumption for ORBIT_DERIVED scenarios. Required then, forbidden otherwise.
+    orbit: OrbitSpecDTO | None = None
 
     def to_domain(self) -> ScenarioSnapshot:
         return ScenarioSnapshot(
@@ -329,9 +407,11 @@ class FixtureDTO(StrictModel):
             dependencies=tuple(item.to_domain() for item in self.dependencies),
             storage=self.storage.to_domain(),
             contact_source=self.contact_source,
+            execution_strategy=self.execution_strategy,
             synthetic_delivery_events=tuple(
                 item.to_domain(index) for index, item in enumerate(self.synthetic_delivery_events)
             ),
+            orbit=self.orbit.to_domain() if self.orbit is not None else None,
         )
 
 
@@ -394,6 +474,7 @@ PUBLIC_FIXTURE_IDS = (
     "PB-GOLDEN-OVERLAP-01",
     "PB-GOLDEN-HORIZON-01",
     "PB-GOLDEN-ACK-01",
+    "PB-GOLDEN-ORB-01",
 )
 
 
@@ -426,9 +507,54 @@ def parse_fixture_content(content: dict[str, Any]) -> FixtureDTO:
 
 
 def load_fixture_source(source: str) -> FixtureDTO:
+    """Resolve a fixture for a *local* caller: a packaged identifier or a path the caller owns.
+
+    This is the CLI's loader. The CLI runs as the user, on the user's machine, against the user's
+    own files, so naming a file is the point of it. Never reach for this from a network handler:
+    use `load_public_fixture`.
+    """
     candidate = Path(source)
     path = candidate if candidate.is_file() else packaged_fixture_path(source)
     return load_fixture(path)
+
+
+#: Characters and prefixes that make a string a filesystem reference rather than an identifier.
+#: A public fixture id contains none of them, so this never rejects a legitimate value.
+_PATH_MARKERS = ("/", "\\", "..", "~")
+
+
+def _looks_like_a_path(value: str) -> bool:
+    if any(marker in value for marker in _PATH_MARKERS):
+        return True
+    # A Windows drive reference such as "C:fixtures". The separator forms are covered above.
+    return len(value) >= 2 and value[1] == ":" and value[0].isalpha()
+
+
+def load_public_fixture(fixture_id: str) -> FixtureDTO:
+    """Resolve a fixture for a *remote* caller: packaged public identifiers and nothing else.
+
+    Over HTTP the same string is supplied by whoever sent the request, so accepting a path would
+    let a caller choose which file the server reads. The allowlist is closed, which makes this an
+    exact-membership test rather than a filter over bad paths -- there is no traversal encoding to
+    outsmart, because no path is ever constructed from the input.
+
+    Neither rejection repeats the requested value, so an absolute path in the request cannot come
+    back in the response body and confirm what does or does not exist on the host.
+    """
+    if _looks_like_a_path(fixture_id):
+        raise DomainValidationError(
+            ErrorDetail(
+                code="FIXTURE_PATH_NOT_ACCEPTED",
+                message=(
+                    "A fixture is named by its public identifier over HTTP, never by a path. "
+                    "The API does not read files named by a request."
+                ),
+                scope="fixture",
+                field_paths=("fixture",),
+                affected_branches=(),
+            )
+        )
+    return load_fixture(packaged_fixture_path(fixture_id))
 
 
 def dto_error_payload(exc: Exception) -> dict[str, Any]:

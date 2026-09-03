@@ -296,6 +296,7 @@ class PostgresRunRepository:
         revision_id = str(uuid4())
         storage = snapshot.storage
         enabled = storage.mode is StorageMode.ENABLED
+        orbit_derived = snapshot.contact_source is ContactSource.ORBIT_DERIVED
         connection.execute(
             insert(tables.scenario_revision).values(
                 id=revision_id,
@@ -310,7 +311,7 @@ class PostgresRunRepository:
                 analysis_mode=snapshot.analysis_mode.value,
                 spacecraft_revision_id=revisions[graph.spacecraft_key],
                 spacecraft_profile_kind="SPACECRAFT",
-                orbit_revision_id=None,
+                orbit_revision_id=(snapshot.source_revision_id[:96] if orbit_derived else None),
                 policy_revision_id=(
                     revisions[graph.policy_key] if graph.policy_key is not None else None
                 ),
@@ -338,8 +339,10 @@ class PostgresRunRepository:
                 event_order_revision=self._manifest_value("event_order_revision"),
                 time_quantization_revision=self._manifest_value("time_quantization_revision"),
                 display_format_revision=self._manifest_value("display_format_revision"),
-                contact_source=ContactSource.SYNTHETIC_INJECTED.value,
-                synthetic_contact_provider_revision=snapshot.source_revision_id[:96],
+                contact_source=snapshot.contact_source.value,
+                synthetic_contact_provider_revision=(
+                    None if orbit_derived else snapshot.source_revision_id[:96]
+                ),
             )
         )
         station_ids: dict[str, str] = {}
@@ -356,7 +359,7 @@ class PostgresRunRepository:
                     minimum_elevation_udeg=station.minimum_elevation_udeg,
                     link_compatibility="UNKNOWN",
                     station_preference_rank=station.preference_rank,
-                    contact_source=ContactSource.SYNTHETIC_INJECTED.value,
+                    contact_source=snapshot.contact_source.value,
                 )
             )
         payload_ids: dict[str, str] = {}

@@ -15,11 +15,19 @@ dependencies = [
   "pydantic>=2.11,<3",
   "pydantic-settings>=2.10,<3",
   "psycopg[binary]>=3.2,<4",
+  # The orbit contact provider (ADR-0004, PM decision 2026-09-03). Promoted from an optional extra
+  # to a core dependency now that the ORBIT_DERIVED domain gate is open: it is required for the
+  # core user flow. python-sgp4 is MIT, pure-Python-installable, and carries no runtime data files
+  # or network access, so ADR-0001's "Python 3.12 is required, nothing else is" still holds.
+  "sgp4>=2.27,<3",
   "sqlalchemy>=2.0,<3",
   "uvicorn[standard]>=0.35,<1",
 ]
 
 [project.optional-dependencies]
+# `orbit` is retained as a compatibility alias for `pip install semantix-passbudget[orbit]`; the
+# engine now installs by default, so this extra is empty rather than removed.
+orbit = []
 dev = [
   "httpx>=0.28,<1",
   "hypothesis>=6.138,<7",
@@ -61,4 +69,11 @@ strict = true
 packages = ["semantix_passbudget"]
 mypy_path = "src"
 plugins = ["pydantic.mypy"]
+
+# python-sgp4 ships no py.typed marker. The import is confined to one adapter module, and the
+# values crossing that boundary are re-typed there, so the untyped import stops at the adapter
+# rather than leaking into the domain.
+[[tool.mypy.overrides]]
+module = ["sgp4.*"]
+ignore_missing_imports = true
 
