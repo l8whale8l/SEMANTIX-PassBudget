@@ -24,7 +24,11 @@ from semantix_passbudget.adapters.synthetic_contact import SyntheticContactProvi
 from semantix_passbudget.application.service import RunScenarioService
 from semantix_passbudget.interfaces.dto import load_fixture
 from semantix_passbudget.ports.persisted_rows import result_rows, rows_hash, rows_view
-from tests.integration.postgres_guard import require_disposable_url
+from tests.integration.postgres_guard import (
+    POSTGRES_UNSUPPORTED_FIXTURES,
+    postgres_capable_fixtures,
+    require_disposable_url,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "src" / "semantix_passbudget" / "fixtures"
@@ -58,9 +62,7 @@ def _compute(name: str):  # type: ignore[no-untyped-def]
     return service.run(snapshot)
 
 
-@pytest.mark.parametrize(
-    "fixture_id", ["PB-GOLDEN-CORE-01", "PB-GOLDEN-QUEUE-01", "PB-GOLDEN-ACK-01"]
-)
+@pytest.mark.parametrize("fixture_id", postgres_capable_fixtures())
 def test_persistence_round_trip_preserves_rows_and_hashes(engine, fixture_id: str) -> None:  # type: ignore[no-untyped-def]
     run = _compute(fixture_id)
     repository = PostgresRunRepository(engine)
@@ -103,16 +105,21 @@ def test_synthetic_run_stores_no_orbit_revision_and_no_elevation(engine) -> None
 
 def test_orbit_derived_row_still_requires_a_maximum_elevation(engine) -> None:  # type: ignore[no-untyped-def]
     """The v0.1 contract is unweakened: an ORBIT_DERIVED access row cannot omit the peak."""
-    with engine.begin() as connection, pytest.raises(IntegrityError) as caught:
-        connection.execute(
-            text(
-                "INSERT INTO passbudget.geometric_access "
-                "(result_id, scenario_station_id, true_aos, true_los, clipped_start, "
-                " clipped_end, contact_source) "
-                "VALUES (gen_random_uuid(), gen_random_uuid(), now(), now() + interval '1 min',"
-                " now(), now() + interval '1 min', 'ORBIT_DERIVED')"
+    # `engine.begin()` would try to COMMIT a transaction the failed statement already
+    # invalidated, and SQLAlchemy raises PendingRollbackError instead of the error under test.
+    # Roll back explicitly so the assertion sees the constraint violation itself.
+    with engine.connect() as connection:
+        with pytest.raises(IntegrityError) as caught:
+            connection.execute(
+                text(
+                    "INSERT INTO passbudget.geometric_access "
+                    "(result_id, scenario_station_id, true_aos, true_los, clipped_start, "
+                    " clipped_end, contact_source) "
+                    "VALUES (gen_random_uuid(), gen_random_uuid(), now(),"
+                    " now() + interval '1 min', now(), now() + interval '1 min', 'ORBIT_DERIVED')"
+                )
             )
-        )
+        connection.rollback()
     assert "geometric_elevation_source_ck" in str(caught.value)
 
 
@@ -122,11 +129,13 @@ def test_terminal_run_cannot_be_rewritten(engine) -> None:  # type: ignore[no-un
     repository.add(run)
     with pytest.raises(PersistenceError):
         repository.add(run)
-    with engine.begin() as connection, pytest.raises(DBAPIError):
-        connection.execute(
-            text("UPDATE passbudget.scenario_run SET status = 'FAILED' WHERE id = :id"),
-            {"id": run.run_id},
-        )
+    with engine.connect() as connection:
+        with pytest.raises(DBAPIError):
+            connection.execute(
+                text("UPDATE passbudget.scenario_run SET status = 'FAILED' WHERE id = :id"),
+                {"id": run.run_id},
+            )
+        connection.rollback()
 
 
 def test_rerunning_the_same_semantic_input_reuses_one_snapshot(engine) -> None:  # type: ignore[no-untyped-def]
@@ -143,3 +152,28 @@ def test_rerunning_the_same_semantic_input_reuses_one_snapshot(engine) -> None: 
             {"digest": bytes.fromhex(first.input_snapshot_hash)},
         ).scalar_one()
     assert count == 1
+
+
+@pytest.mark.parametrize("fixture_id", POSTGRES_UNSUPPORTED_FIXTURES)
+def test_an_unsupported_release_trigger_is_refused_not_silently_stored(
+    engine, fixture_id: str
+) -> None:  # type: ignore[no-untyped-def]
+    """`CONFLICT-STORE-01`, asserted rather than assumed.
+
+    `release_trigger = ACKED` is a P0 acceptance requirement (AC-25B) that the accepted v0.1
+    enum cannot express. The domain computes it and the SQLite tier stores it; PostgreSQL must
+    refuse it loudly. A silent success here would mean the schema had been widened without a
+    decision, and a silent skip would hide that the conflict is still open.
+    """
+    run = _compute(fixture_id)
+    repository = PostgresRunRepository(engine)
+    with pytest.raises(PersistenceError):
+        repository.add(run)
+    # The refusal must not leak the connection string or the driver's context.
+    try:
+        repository.add(run)
+    except PersistenceError as caught:
+        message = str(caught)
+    assert "postgresql" not in message.lower()
+    assert "127.0.0.1" not in message
+    assert "password" not in message.lower()

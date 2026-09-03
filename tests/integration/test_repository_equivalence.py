@@ -29,13 +29,9 @@ from semantix_passbudget.domain.canonical import semantic_hash
 from semantix_passbudget.interfaces.dto import PUBLIC_FIXTURE_IDS, load_fixture_source
 from semantix_passbudget.ports.persisted_rows import result_rows, rows_hash, rows_view
 from semantix_passbudget.ports.run_repository import RunRepository, StoredRun
-from tests.integration.postgres_guard import TEST_URL_ENV
+from tests.integration.postgres_guard import TEST_URL_ENV, postgres_capable_fixtures
 
-#: `PB-GOLDEN-ACK-01` uses `release_trigger=ACKED`, which the accepted PostgreSQL enum does not
-#: contain (CONFLICT-STORE-01). It is exercised on the tiers that can represent it.
-POSTGRES_CAPABLE_FIXTURES = tuple(
-    fixture for fixture in PUBLIC_FIXTURE_IDS if fixture != "PB-GOLDEN-ACK-01"
-)
+POSTGRES_CAPABLE_FIXTURES = postgres_capable_fixtures()
 
 
 def _compute(fixture_id: str) -> StoredRun:

@@ -19,6 +19,24 @@ import pytest
 TEST_URL_ENV = "PASSBUDGET_TEST_DATABASE_URL"
 RUNTIME_URL_ENV = "PASSBUDGET_DATABASE_URL"
 
+#: Fixtures the accepted PostgreSQL schema can represent.
+#:
+#: `PB-GOLDEN-ACK-01` is deliberately excluded. It sets `release_trigger = ACKED`, which the
+#: accepted v0.1 enum does not contain and which `scenario_storage_ck` would reject even if it
+#: did. That is a documented, open specification conflict (`CONFLICT-STORE-01`), not a defect to
+#: work around: the domain supports ACKED for `TEST_SYNTHETIC` events, the PostgreSQL tier cannot
+#: store it, and `test_postgres_persistence.py` asserts that the refusal is explicit.
+POSTGRES_UNSUPPORTED_FIXTURES = ("PB-GOLDEN-ACK-01",)
+
+
+def postgres_capable_fixtures() -> tuple[str, ...]:
+    from semantix_passbudget.interfaces.dto import PUBLIC_FIXTURE_IDS
+
+    return tuple(
+        fixture for fixture in PUBLIC_FIXTURE_IDS if fixture not in POSTGRES_UNSUPPORTED_FIXTURES
+    )
+
+
 #: A disposable database announces itself in its name.
 DISPOSABLE_NAME = re.compile(r"(?i)(^|[_-])(test|tests|ci|tmp|temp|scratch|disposable)([_-]|$)")
 #: Only a loopback or an obvious container/CI host is accepted.
