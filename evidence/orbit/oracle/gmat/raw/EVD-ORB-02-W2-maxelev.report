@@ -1,0 +1,7 @@
+Target: VirtSat
+
+Observer         Start Time (UTCGregorian)     Stop Time (UTCGregorian)     Duration (s)     Maximum Elevation (deg)     Max Elevation Time (UTCGregorian)     
+------------     -------------------------     ------------------------     ------------     -----------------------     ---------------------------------     
+SYN_GS_MIDLAT      03 Sep 2026 10:32:00.000     03 Sep 2026 10:37:26.574       326.573633                   37.377911              03 Sep 2026 10:32:00.000     
+SYN_GS_POLAR      03 Sep 2026 11:50:46.979     03 Sep 2026 12:00:30.319       583.339758                   19.635845              03 Sep 2026 11:55:38.555     
+SYN_GS_MIDLAT      03 Sep 2026 12:04:33.804     03 Sep 2026 12:10:00.000       326.196077                   20.727573              03 Sep 2026 12:09:21.525     

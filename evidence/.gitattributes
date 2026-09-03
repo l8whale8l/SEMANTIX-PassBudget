@@ -1,0 +1,8 @@
+# Evidence artifacts are hashed byte-for-byte. Git must never rewrite their
+# line endings, or the recorded SHA-256 stops verifying on checkout.
+* -text
+*.raw binary
+*.txt -text
+*.json -text
+*.script -text
+*.report -text

@@ -116,6 +116,24 @@ def compare_results(
                 ComparisonReasonCode.EVIDENCE_GRADE_MISMATCH,
             )
         )
+    baseline_optimization = _optimization(baseline_result)
+    candidate_optimization = _optimization(candidate_result)
+    if (
+        baseline_optimization["optimization_status"]
+        != candidate_optimization["optimization_status"]
+    ):
+        # One side established optimality and the other did not. The metric deltas are still
+        # arithmetic, but reading them as "this scenario is better" would compare a proven
+        # optimum against a bounded approximation and attribute the difference to the scenario.
+        warnings.append(
+            {
+                "code": ComparisonReasonCode.OPTIMIZATION_GRADE_MISMATCH.value,
+                "baseline_optimization_status": str(baseline_optimization["optimization_status"]),
+                "candidate_optimization_status": str(candidate_optimization["optimization_status"]),
+                "baseline_execution_strategy": str(baseline_optimization["execution_strategy"]),
+                "candidate_execution_strategy": str(candidate_optimization["execution_strategy"]),
+            }
+        )
     return {
         "schema_version": COMPARISON_SCHEMA_VERSION,
         "baseline_fixture_id": baseline_result.get("fixture_id"),
@@ -124,9 +142,22 @@ def compare_results(
         "candidate_input_summary": _input_summary(candidate_result),
         "baseline_decision_grade": baseline_grade,
         "candidate_decision_grade": candidate_grade,
+        "baseline_optimization": baseline_optimization,
+        "candidate_optimization": candidate_optimization,
         "metrics": rows,
         "warnings": warnings,
         "safety_notice": baseline_result.get("safety_notice"),
+    }
+
+
+def _optimization(result: dict[str, Any]) -> dict[str, Any]:
+    """One side's optimization grade, defaulted for a result written before the field."""
+    block = result.get("optimization") or {}
+    return {
+        "execution_strategy": block.get("execution_strategy", "UNKNOWN"),
+        "optimization_status": block.get("optimization_status", "UNKNOWN"),
+        "globally_optimal": block.get("globally_optimal"),
+        "algorithm_revision": block.get("algorithm_revision", "UNKNOWN"),
     }
 
 

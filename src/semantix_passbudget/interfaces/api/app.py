@@ -9,14 +9,16 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 
 from semantix_passbudget.application.comparison import compare_results, render_report
 from semantix_passbudget.application.composition import build_application
+from semantix_passbudget.domain import limits
 from semantix_passbudget.domain.errors import DomainValidationError
+from semantix_passbudget.interfaces.api.body_limit import RequestBodySizeLimit
 from semantix_passbudget.interfaces.dto import (
     ComparisonRequest,
     CreateRunRequest,
     HealthResponse,
     RunMetadataResponse,
     RunResultsResponse,
-    load_fixture_source,
+    load_public_fixture,
     parse_fixture_content,
 )
 from semantix_passbudget.interfaces.lifecycle_dto import (
@@ -45,6 +47,8 @@ application = build_application(default_persistence="sqlite")
 service = application.runs
 catalog = application.catalog
 app = FastAPI(title="SEMANTIX PassBudget", version="0.2.0")
+# Bounds the body by declared *and* received length; see interfaces/api/body_limit.py.
+app.add_middleware(RequestBodySizeLimit, maximum=limits.MAX_REQUEST_BODY_BYTES)
 
 NOT_FOUND_CODES = {
     "PROFILE_NOT_FOUND",
@@ -333,7 +337,7 @@ def create_run(request: CreateRunRequest) -> Any:
         fixture = parse_fixture_content(snapshot.content["content"])
         scenario_revision_id = snapshot.scenario_revision_id
     else:
-        fixture = request.snapshot or load_fixture_source(request.fixture or "")
+        fixture = request.snapshot or load_public_fixture(request.fixture or "")
         scenario_revision_id = None
     run = service.run(fixture.to_domain())
     if scenario_revision_id is not None:

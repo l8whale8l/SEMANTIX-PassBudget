@@ -1,0 +1,92 @@
+{
+  "evidence_id": "EVD-ORB-02",
+  "kind": "VIRTUAL_CIRCULAR",
+  "status": "INPUTS_FROZEN_PROPAGATOR_RESOLVED",
+  "blocked_by": [],
+  "synthetic_notice": "This is a synthetic reference orbit defined by literal initial conditions. It is not a real spacecraft, not KMU-ET02, and no result derived from it describes real orbital performance.",
+  "epoch_utc": "2026-09-03T00:00:00.000000Z",
+  "state": {
+    "representation": "KEPLERIAN_OSCULATING",
+    "frame": "EME2000",
+    "semi_major_axis_m": 7078137.0,
+    "semi_major_axis_derivation": "6378137.0 m WGS-84 equatorial radius + 700000.0 m altitude, exact",
+    "eccentricity": 0.0,
+    "inclination_deg": 98.0,
+    "raan_deg": 90.0,
+    "argument_of_perigee_deg": 0.0,
+    "true_anomaly_deg": 0.0,
+    "degenerate_element_note": "For e = 0 the argument of perigee and true anomaly are not individually defined; both are fixed to 0.0 so that each tool receives an identical literal rather than applying its own convention."
+  },
+  "central_body": {
+    "mu_m3_per_s2": 398600441500000.0,
+    "why_explicit": "Tool defaults for mu differ in the last significant digits. Left implicit, that difference alone would appear in the delta table as an implementation disagreement."
+  },
+  "stations": [
+    {
+      "station_key": "SYN-GS-MIDLAT",
+      "latitude_deg": 37.6,
+      "longitude_deg_east": 127.0,
+      "ellipsoidal_height_m": 100.0,
+      "minimum_elevation_deg": 5.0
+    },
+    {
+      "station_key": "SYN-GS-EQUATOR",
+      "latitude_deg": 0.0,
+      "longitude_deg_east": 60.0,
+      "ellipsoidal_height_m": 0.0,
+      "minimum_elevation_deg": 5.0
+    },
+    {
+      "station_key": "SYN-GS-POLAR",
+      "latitude_deg": 85.0,
+      "longitude_deg_east": 0.0,
+      "ellipsoidal_height_m": 0.0,
+      "minimum_elevation_deg": 5.0
+    },
+    {
+      "station_key": "SYN-GS-GRAZE",
+      "latitude_deg": 67.2,
+      "longitude_deg_east": 0.0,
+      "ellipsoidal_height_m": 0.0,
+      "minimum_elevation_deg": 5.0,
+      "role": "high-latitude coverage, carried over from EVD-ORB-01 so the two fixtures differ only in the orbit"
+    },
+    {
+      "station_key": "SYN-GS-TANGENT",
+      "latitude_deg": 60.0,
+      "longitude_deg_east": 210.0,
+      "ellipsoidal_height_m": 0.0,
+      "minimum_elevation_deg": 5.0,
+      "role": "tangent-pass coverage; its best pass culminates at 5.047622 deg, only 0.048 deg above the mask. Selected by an oracle-only scan of twelve candidate sites (evidence/orbit/oracle/gmat/EVD-ORB-02-tangent-scan.script); the product engine took no part in the choice."
+    }
+  ],
+  "station_notice": "All five stations are synthetic verification coordinates chosen for geometric coverage. None is a KMU site.",
+  "coverage_note": "W1 gives many passes at every station and the tangent case. W2 gives both boundary-clipping cases and three zero-contact stations. Unlike EVD-ORB-01, this fixture has no analytically guaranteed zero-contact station, because a 98 deg inclination orbit reaches every latitude; the zero-contact case is therefore established by the short window rather than by geometry.",
+  "shared_contract": "docs/specs/ORBIT_VERIFICATION_CONTRACT.md",
+  "propagator": {
+    "profile": "TWO_BODY_V1",
+    "resolved_by": "PM decision Q-DATA-03, 2026-09-03, recorded in docs/specs/ORBIT_VERIFICATION_CONTRACT.md section 7.2 and its amendment log",
+    "forces": [
+      "central body point mass only"
+    ],
+    "j2": null,
+    "drag": false,
+    "srp": false,
+    "third_body": false,
+    "relativistic_correction": false
+  },
+  "analysis_windows": [
+    {
+      "window": "W1",
+      "start_utc": "2026-09-03T00:00:00.000000Z",
+      "end_utc": "2026-09-04T00:00:00.000000Z",
+      "purpose": "Primary 24 h window: many passes at every station, including a tangent pass at SYN-GS-TANGENT."
+    },
+    {
+      "window": "W2",
+      "start_utc": "2026-09-03T10:32:00.000000Z",
+      "end_utc": "2026-09-03T12:10:00.000000Z",
+      "purpose": "Boundary clipping and zero contact, derived from the oracle's W1 output by the rule in contract section 7.1. At i = 98 deg every station sees passes over 24 h, so a short window is the only way this fixture can exercise the zero-contact case."
+    }
+  ]
+}

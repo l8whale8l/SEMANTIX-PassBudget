@@ -12,6 +12,8 @@ import sys
 import time
 from dataclasses import replace
 
+import pytest
+
 from semantix_passbudget.adapters.memory_repository import InMemoryRunRepository
 from semantix_passbudget.adapters.synthetic_contact import SyntheticContactProvider
 from semantix_passbudget.application.service import RunScenarioService
@@ -20,10 +22,12 @@ from semantix_passbudget.domain.enums import (
     CapacityProvider,
     DeadlineTarget,
     EvidenceState,
+    ExecutionStrategy,
     PostDeadlineAction,
     SegmentationKind,
     ServiceClass,
 )
+from semantix_passbudget.domain.errors import DomainValidationError
 from semantix_passbudget.domain.models import (
     CapacityProfile,
     Payload,
@@ -36,11 +40,14 @@ from semantix_passbudget.domain.time import TimeInterval, UtcInstant
 STATIONS = 20
 DAYS = 7
 PASSES_PER_DAY = 5
-PAYLOADS = 200
+PAYLOADS = 10_000
 SECOND = 1_000_000
 
-#: Generous upper bound: the reference target is 60 s for a far larger payload manifest.
-WALL_CLOCK_BUDGET_S = 30.0
+#: The specification's own non-functional target (P0_FUNCTIONAL_SPEC.md §15.2) for the reference
+#: analysis size, used verbatim rather than relaxed. Measured headroom is recorded in
+#: docs/specs/P0_ACCEPTANCE_MATRIX.md; the point of the assertion is to fail if the search ever
+#: becomes exponential again, not to publish a benchmark number.
+WALL_CLOCK_BUDGET_S = 60.0
 
 
 def _wall_clock_is_measurable() -> bool:
@@ -97,10 +104,10 @@ def _snapshot() -> ScenarioSnapshot:
                 slot += 1
     payloads = tuple(
         Payload(
-            stable_key=f"P-{index:04d}",
+            stable_key=f"P-{index:05d}",
             logical_size_bytes=5_000_000,
             storage_size_bytes=5_000_000,
-            ready_at=UtcInstant(index * 600 * SECOND),
+            ready_at=UtcInstant((index * DAYS * 86_400 * SECOND) // PAYLOADS),
             service_class=ServiceClass.PRIORITY,
             deadline_at=UtcInstant((DAYS * 86_400 - 1) * SECOND),
             deadline_severity=0,
@@ -144,8 +151,9 @@ def test_reference_analysis_size_completes_within_a_bounded_time() -> None:
         assert elapsed < WALL_CLOCK_BUDGET_S, f"reference analysis took {elapsed:.1f}s"
 
 
-def test_pairwise_overlap_at_reference_size_still_searches_exactly() -> None:
-    """Half the opportunities overlap a partner, so every conflict component needs a rollout."""
+def _with_shifted_contacts(indices: frozenset[int]) -> ScenarioSnapshot:
+    """The reference scenario with the named contacts pulled 200 s earlier, so each overlaps its
+    neighbour and turns one conflict component into a genuine two-way alternative."""
     base = _snapshot()
     shifted = tuple(
         SyntheticContact(
@@ -156,11 +164,21 @@ def test_pairwise_overlap_at_reference_size_still_searches_exactly() -> None:
                 UtcInstant(contact.true_interval.end.microseconds - 200 * SECOND),
             ),
         )
-        if index % 2
+        if index in indices
         else contact
         for index, contact in enumerate(base.contacts)
     )
-    snapshot = replace(base, contacts=shifted)
+    return replace(base, contacts=shifted)
+
+
+def test_a_few_overlaps_at_reference_size_are_still_searched_globally() -> None:
+    """Two real conflicts at reference size: four whole-horizon rollouts, not an estimate.
+
+    Each combination costs one full `run_ledger` over 700 contacts and 10,000 payloads, so this
+    also pins the cost model that `GLOBAL_COMBINATION_BUDGET` does *not* bound: the budget limits
+    the number of combinations, and wall clock is that number times the instance size.
+    """
+    snapshot = _with_shifted_contacts(frozenset({11, 23}))
     service = RunScenarioService(SyntheticContactProvider(), InMemoryRunRepository())
     started = time.perf_counter()
     run = service.run(snapshot)
@@ -168,4 +186,116 @@ def test_pairwise_overlap_at_reference_size_still_searches_exactly() -> None:
     assert run.status == "SUCCEEDED"
     assert run.result["metrics"]["suppressed_capacity_bytes"] > 0
     if _wall_clock_is_measurable():
-        assert elapsed < WALL_CLOCK_BUDGET_S, f"overlapping reference analysis took {elapsed:.1f}s"
+        assert elapsed < WALL_CLOCK_BUDGET_S, f"two-conflict reference analysis took {elapsed:.1f}s"
+
+
+def test_dense_pairwise_overlap_is_refused_rather_than_approximated() -> None:
+    """Half the opportunities overlap a partner, which is past what exact global search can do.
+
+    Every such pair is an independent two-way choice and the objective is global, so the search
+    space is 2**350. The selection is refused with a named budget code. It is *not* answered by
+    committing component by component against a byte-maximising estimate of the future: that is
+    what `QUEUE_AWARE_LEXICOGRAPHIC_HORIZON_V2` did, and
+    `tests/unit/test_horizon.py::test_cross_component_alternatives_are_evaluated_against_the_whole_horizon`
+    is the two-component instance where it returns the wrong answer.
+    """
+    snapshot = _with_shifted_contacts(
+        frozenset(index for index in range(len(_snapshot().contacts)) if index % 2)
+    )
+    service = RunScenarioService(SyntheticContactProvider(), InMemoryRunRepository())
+    with pytest.raises(DomainValidationError) as caught:
+        service.run(snapshot)
+    assert caught.value.detail.code == "QUEUE_HORIZON_GLOBAL_SEARCH_BUDGET_EXCEEDED"
+    # The refusal names the limit, never a partial or byte-only answer.
+    assert "approximated" in caught.value.detail.message
+
+
+def test_the_dense_fixture_the_exact_search_refuses_is_answered_by_the_bounded_mode() -> None:
+    """The same input the exact mode will not touch, answered inside the performance target.
+
+    This is the whole point of `BOUNDED_APPROXIMATE` existing: 20 stations, 7 days, 700 contacts,
+    10,000 payloads and 350 genuine two-way conflicts. The exact search would need 2**350
+    whole-horizon rollouts and refuses; the bounded family costs at most one rollout per policy.
+    The result is feasible and says plainly that it is not proven optimal.
+    """
+    dense = replace(
+        _with_shifted_contacts(
+            frozenset(index for index in range(len(_snapshot().contacts)) if index % 2)
+        ),
+        execution_strategy=ExecutionStrategy.BOUNDED_APPROXIMATE,
+    )
+    assert len(dense.contacts) == STATIONS * DAYS * PASSES_PER_DAY
+    assert len(dense.payloads) == PAYLOADS == 10_000
+    service = RunScenarioService(SyntheticContactProvider(), InMemoryRunRepository())
+    started = time.perf_counter()
+    run = service.run(dense)
+    elapsed = time.perf_counter() - started
+
+    assert run.status == "SUCCEEDED"
+    assert run.result["optimization"] == {
+        "execution_strategy": "BOUNDED_APPROXIMATE",
+        "optimization_status": "APPROXIMATE",
+        "globally_optimal": False,
+        "optimality_gap": None,
+        "algorithm_revision": "QUEUE_AWARE_BOUNDED_POLICY_FAMILY_V2",
+    }
+    assert "NOT_GLOBALLY_OPTIMAL" in {item["code"] for item in run.result["warnings"]}
+    assert run.result["metrics"]["scheduled_unique_capacity_bytes"] > 0
+    if _wall_clock_is_measurable():
+        assert elapsed < WALL_CLOCK_BUDGET_S, f"dense approximate analysis took {elapsed:.1f}s"
+
+
+def _one_connected_component() -> ScenarioSnapshot:
+    """The reference contact count welded into a single conflict component.
+
+    Each contact overlaps its neighbour and nothing else, so the overlap graph is one path of 700
+    nodes. Its maximal non-overlapping sets are Fibonacci-many, which the exact search refuses
+    outright -- and which the bounded mode must never compute in the first place.
+    """
+    base = _snapshot()
+    contacts = tuple(
+        SyntheticContact(
+            f"C{index:05d}",
+            base.stations[index % STATIONS].stable_key,
+            TimeInterval(
+                UtcInstant(index * 600 * SECOND),
+                UtcInstant((index * 600 + 900) * SECOND),
+            ),
+        )
+        for index in range(STATIONS * DAYS * PASSES_PER_DAY)
+    )
+    return replace(base, contacts=contacts)
+
+
+def test_a_single_connected_component_at_reference_size_is_refused_by_the_exact_search() -> None:
+    snapshot = replace(
+        _one_connected_component(), execution_strategy=ExecutionStrategy.EXACT_GLOBAL
+    )
+    service = RunScenarioService(SyntheticContactProvider(), InMemoryRunRepository())
+    with pytest.raises(DomainValidationError) as caught:
+        service.run(snapshot)
+    assert caught.value.detail.code == "QUEUE_HORIZON_SEARCH_BUDGET_EXCEEDED"
+
+
+def test_a_single_connected_component_at_reference_size_is_answered_by_the_bounded_mode() -> None:
+    """Performance regression for the mode's whole reason to exist.
+
+    700 contacts in one component and 10,000 payloads. The bounded mode does no component
+    decomposition and no maximal-set enumeration, so its cost is three polynomial schedules plus
+    at most three rollouts -- independent of how densely the component is connected.
+    """
+    snapshot = replace(
+        _one_connected_component(), execution_strategy=ExecutionStrategy.BOUNDED_APPROXIMATE
+    )
+    assert len(snapshot.contacts) == STATIONS * DAYS * PASSES_PER_DAY
+    assert len(snapshot.payloads) == PAYLOADS == 10_000
+    service = RunScenarioService(SyntheticContactProvider(), InMemoryRunRepository())
+    started = time.perf_counter()
+    run = service.run(snapshot)
+    elapsed = time.perf_counter() - started
+
+    assert run.status == "SUCCEEDED"
+    assert run.result["optimization"]["optimization_status"] == "APPROXIMATE"
+    assert run.result["metrics"]["scheduled_session_count"] > 0
+    if _wall_clock_is_measurable():
+        assert elapsed < WALL_CLOCK_BUDGET_S, f"single-component approximate took {elapsed:.1f}s"

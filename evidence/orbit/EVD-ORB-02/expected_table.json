@@ -1,0 +1,470 @@
+{
+  "evidence_id": "EVD-ORB-02",
+  "role": "INDEPENDENT_ORACLE_EXPECTED_TABLE",
+  "oracle_tool": "NASA GMAT",
+  "oracle_version": "R2026a",
+  "generated_by": "scripts/orbit/gmat_to_expected.py",
+  "generation_note": "Every value here was parsed from the preserved raw GMAT reports. No expected value was typed by hand, and the raw reports were not edited. Regenerate with the command in the evidence README to reproduce this file byte for byte.",
+  "independence_note": "This table is the oracle. It must never be regenerated from, adjusted towards, or reconciled with the product engine's output.",
+  "windows": [
+    {
+      "window": "W1",
+      "source_reports": {
+        "EVD-ORB-02-maxelev.report": "81bca051c6de16cab8e3feee184dc82f520bfc5945d565e0d9d777d82879c7cb",
+        "EVD-ORB-02-legacy.report": "8c0c0128846a6ed8098d9501cdeefdf4b7743a1a57e55ada06d7c0b3c9a062c1"
+      },
+      "stations_reported": [
+        "SYN-GS-EQUATOR",
+        "SYN-GS-GRAZE",
+        "SYN-GS-MIDLAT",
+        "SYN-GS-POLAR",
+        "SYN-GS-TANGENT"
+      ],
+      "zero_contact_stations": [],
+      "pass_count_by_station": {
+        "SYN-GS-EQUATOR": 3,
+        "SYN-GS-GRAZE": 11,
+        "SYN-GS-MIDLAT": 4,
+        "SYN-GS-POLAR": 15,
+        "SYN-GS-TANGENT": 9
+      },
+      "total_pass_count": 42,
+      "passes": [
+        {
+          "station_key": "SYN-GS-POLAR",
+          "aos_utc": "2026-09-03T00:19:09.449000Z",
+          "los_utc": "2026-09-03T00:30:47.868000Z",
+          "duration_s": 698.418796,
+          "maximum_elevation_deg": 63.070591,
+          "maximum_elevation_time_utc": "2026-09-03T00:24:58.745000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-POLAR-20260903T001909449000"
+        },
+        {
+          "station_key": "SYN-GS-GRAZE",
+          "aos_utc": "2026-09-03T00:21:40.169000Z",
+          "los_utc": "2026-09-03T00:30:13.705000Z",
+          "duration_s": 513.536686,
+          "maximum_elevation_deg": 15.45529,
+          "maximum_elevation_time_utc": "2026-09-03T00:25:57.055000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-GRAZE-20260903T002140169000"
+        },
+        {
+          "station_key": "SYN-GS-POLAR",
+          "aos_utc": "2026-09-03T01:57:20.613000Z",
+          "los_utc": "2026-09-03T02:08:58.984000Z",
+          "duration_s": 698.370546,
+          "maximum_elevation_deg": 62.958888,
+          "maximum_elevation_time_utc": "2026-09-03T02:03:09.706000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-POLAR-20260903T015720613000"
+        },
+        {
+          "station_key": "SYN-GS-GRAZE",
+          "aos_utc": "2026-09-03T01:57:50.296000Z",
+          "los_utc": "2026-09-03T02:06:25.609000Z",
+          "duration_s": 515.313161,
+          "maximum_elevation_deg": 15.570884,
+          "maximum_elevation_time_utc": "2026-09-03T02:02:07.826000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-GRAZE-20260903T015750296000"
+        },
+        {
+          "station_key": "SYN-GS-EQUATOR",
+          "aos_utc": "2026-09-03T03:11:44.915000Z",
+          "los_utc": "2026-09-03T03:23:11.912000Z",
+          "duration_s": 686.99708,
+          "maximum_elevation_deg": 77.076143,
+          "maximum_elevation_time_utc": "2026-09-03T03:17:28.351000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-EQUATOR-20260903T031144915000"
+        },
+        {
+          "station_key": "SYN-GS-GRAZE",
+          "aos_utc": "2026-09-03T03:33:29.736000Z",
+          "los_utc": "2026-09-03T03:43:36.466000Z",
+          "duration_s": 606.729537,
+          "maximum_elevation_deg": 24.709135,
+          "maximum_elevation_time_utc": "2026-09-03T03:38:32.522000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-GRAZE-20260903T033329736000"
+        },
+        {
+          "station_key": "SYN-GS-POLAR",
+          "aos_utc": "2026-09-03T03:35:36.795000Z",
+          "los_utc": "2026-09-03T03:47:11.410000Z",
+          "duration_s": 694.615366,
+          "maximum_elevation_deg": 56.08713,
+          "maximum_elevation_time_utc": "2026-09-03T03:41:23.849000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-POLAR-20260903T033536795000"
+        },
+        {
+          "station_key": "SYN-GS-TANGENT",
+          "aos_utc": "2026-09-03T03:46:45.781000Z",
+          "los_utc": "2026-09-03T03:54:08.270000Z",
+          "duration_s": 442.48956,
+          "maximum_elevation_deg": 11.197788,
+          "maximum_elevation_time_utc": "2026-09-03T03:50:27.821000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-TANGENT-20260903T034645781000"
+        },
+        {
+          "station_key": "SYN-GS-GRAZE",
+          "aos_utc": "2026-09-03T05:09:50.810000Z",
+          "los_utc": "2026-09-03T05:21:19.611000Z",
+          "duration_s": 688.801189,
+          "maximum_elevation_deg": 58.18034,
+          "maximum_elevation_time_utc": "2026-09-03T05:15:33.857000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-GRAZE-20260903T050950810000"
+        },
+        {
+          "station_key": "SYN-GS-POLAR",
+          "aos_utc": "2026-09-03T05:14:04.884000Z",
+          "los_utc": "2026-09-03T05:25:29.547000Z",
+          "duration_s": 684.663164,
+          "maximum_elevation_deg": 45.618997,
+          "maximum_elevation_time_utc": "2026-09-03T05:19:46.856000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-POLAR-20260903T051404884000"
+        },
+        {
+          "station_key": "SYN-GS-TANGENT",
+          "aos_utc": "2026-09-03T05:23:34.416000Z",
+          "los_utc": "2026-09-03T05:35:00.791000Z",
+          "duration_s": 686.375042,
+          "maximum_elevation_deg": 50.63009,
+          "maximum_elevation_time_utc": "2026-09-03T05:29:19.664000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-TANGENT-20260903T052334416000"
+        },
+        {
+          "station_key": "SYN-GS-GRAZE",
+          "aos_utc": "2026-09-03T06:47:47.494000Z",
+          "los_utc": "2026-09-03T06:59:09.709000Z",
+          "duration_s": 682.215225,
+          "maximum_elevation_deg": 45.500529,
+          "maximum_elevation_time_utc": "2026-09-03T06:53:26.928000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-GRAZE-20260903T064747494000"
+        },
+        {
+          "station_key": "SYN-GS-POLAR",
+          "aos_utc": "2026-09-03T06:52:50.517000Z",
+          "los_utc": "2026-09-03T07:03:56.290000Z",
+          "duration_s": 665.773449,
+          "maximum_elevation_deg": 35.439952,
+          "maximum_elevation_time_utc": "2026-09-03T06:58:23.018000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-POLAR-20260903T065250517000"
+        },
+        {
+          "station_key": "SYN-GS-TANGENT",
+          "aos_utc": "2026-09-03T07:01:26.125000Z",
+          "los_utc": "2026-09-03T07:12:24.275000Z",
+          "duration_s": 658.150216,
+          "maximum_elevation_deg": 37.59758,
+          "maximum_elevation_time_utc": "2026-09-03T07:06:56.570000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-TANGENT-20260903T070126125000"
+        },
+        {
+          "station_key": "SYN-GS-GRAZE",
+          "aos_utc": "2026-09-03T08:28:05.061000Z",
+          "los_utc": "2026-09-03T08:36:40.478000Z",
+          "duration_s": 515.417464,
+          "maximum_elevation_deg": 14.559812,
+          "maximum_elevation_time_utc": "2026-09-03T08:32:21.886000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-GRAZE-20260903T082805061000"
+        },
+        {
+          "station_key": "SYN-GS-POLAR",
+          "aos_utc": "2026-09-03T08:31:55.796000Z",
+          "los_utc": "2026-09-03T08:42:33.872000Z",
+          "duration_s": 638.076064,
+          "maximum_elevation_deg": 27.595719,
+          "maximum_elevation_time_utc": "2026-09-03T08:37:14.505000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-POLAR-20260903T083155796000"
+        },
+        {
+          "station_key": "SYN-GS-TANGENT",
+          "aos_utc": "2026-09-03T08:39:39.331000Z",
+          "los_utc": "2026-09-03T08:47:17.549000Z",
+          "duration_s": 458.217778,
+          "maximum_elevation_deg": 12.481825,
+          "maximum_elevation_time_utc": "2026-09-03T08:43:28.746000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-TANGENT-20260903T083939331000"
+        },
+        {
+          "station_key": "SYN-GS-POLAR",
+          "aos_utc": "2026-09-03T10:11:17.517000Z",
+          "los_utc": "2026-09-03T10:21:24.560000Z",
+          "duration_s": 607.042116,
+          "maximum_elevation_deg": 22.405477,
+          "maximum_elevation_time_utc": "2026-09-03T10:16:20.819000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-POLAR-20260903T101117517000"
+        },
+        {
+          "station_key": "SYN-GS-TANGENT",
+          "aos_utc": "2026-09-03T10:18:49.857000Z",
+          "los_utc": "2026-09-03T10:19:32.205000Z",
+          "duration_s": 42.348318,
+          "maximum_elevation_deg": 5.047622,
+          "maximum_elevation_time_utc": "2026-09-03T10:19:11.032000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-TANGENT-20260903T101849857000"
+        },
+        {
+          "station_key": "SYN-GS-MIDLAT",
+          "aos_utc": "2026-09-03T10:26:26.564000Z",
+          "los_utc": "2026-09-03T10:37:26.574000Z",
+          "duration_s": 660.009763,
+          "maximum_elevation_deg": 37.379678,
+          "maximum_elevation_time_utc": "2026-09-03T10:31:58.798000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-MIDLAT-20260903T102626564000"
+        },
+        {
+          "station_key": "SYN-GS-POLAR",
+          "aos_utc": "2026-09-03T11:50:46.979000Z",
+          "los_utc": "2026-09-03T12:00:30.319000Z",
+          "duration_s": 583.339757,
+          "maximum_elevation_deg": 19.635845,
+          "maximum_elevation_time_utc": "2026-09-03T11:55:38.555000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-POLAR-20260903T115046979000"
+        },
+        {
+          "station_key": "SYN-GS-MIDLAT",
+          "aos_utc": "2026-09-03T12:04:33.804000Z",
+          "los_utc": "2026-09-03T12:14:07.346000Z",
+          "duration_s": 573.542162,
+          "maximum_elevation_deg": 20.727573,
+          "maximum_elevation_time_utc": "2026-09-03T12:09:21.525000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-MIDLAT-20260903T120433804000"
+        },
+        {
+          "station_key": "SYN-GS-TANGENT",
+          "aos_utc": "2026-09-03T13:26:34.676000Z",
+          "los_utc": "2026-09-03T13:33:48.695000Z",
+          "duration_s": 434.018597,
+          "maximum_elevation_deg": 11.45822,
+          "maximum_elevation_time_utc": "2026-09-03T13:30:11.434000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-TANGENT-20260903T132634676000"
+        },
+        {
+          "station_key": "SYN-GS-POLAR",
+          "aos_utc": "2026-09-03T13:30:12.826000Z",
+          "los_utc": "2026-09-03T13:39:50.631000Z",
+          "duration_s": 577.805141,
+          "maximum_elevation_deg": 19.084936,
+          "maximum_elevation_time_utc": "2026-09-03T13:35:01.759000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-POLAR-20260903T133012826000"
+        },
+        {
+          "station_key": "SYN-GS-EQUATOR",
+          "aos_utc": "2026-09-03T13:57:14.681000Z",
+          "los_utc": "2026-09-03T14:03:53.814000Z",
+          "duration_s": 399.133389,
+          "maximum_elevation_deg": 10.152981,
+          "maximum_elevation_time_utc": "2026-09-03T14:00:34.535000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-EQUATOR-20260903T135714681000"
+        },
+        {
+          "station_key": "SYN-GS-TANGENT",
+          "aos_utc": "2026-09-03T15:01:16.278000Z",
+          "los_utc": "2026-09-03T15:12:03.462000Z",
+          "duration_s": 647.183951,
+          "maximum_elevation_deg": 33.719861,
+          "maximum_elevation_time_utc": "2026-09-03T15:06:38.609000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-TANGENT-20260903T150116278000"
+        },
+        {
+          "station_key": "SYN-GS-POLAR",
+          "aos_utc": "2026-09-03T15:09:26.341000Z",
+          "los_utc": "2026-09-03T15:19:19.633000Z",
+          "duration_s": 593.291599,
+          "maximum_elevation_deg": 20.709772,
+          "maximum_elevation_time_utc": "2026-09-03T15:14:23.143000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-POLAR-20260903T150926341000"
+        },
+        {
+          "station_key": "SYN-GS-EQUATOR",
+          "aos_utc": "2026-09-03T15:32:31.439000Z",
+          "los_utc": "2026-09-03T15:43:23.639000Z",
+          "duration_s": 652.199379,
+          "maximum_elevation_deg": 37.414788,
+          "maximum_elevation_time_utc": "2026-09-03T15:37:57.239000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-EQUATOR-20260903T153231439000"
+        },
+        {
+          "station_key": "SYN-GS-TANGENT",
+          "aos_utc": "2026-09-03T16:38:25.622000Z",
+          "los_utc": "2026-09-03T16:49:57.644000Z",
+          "duration_s": 692.021924,
+          "maximum_elevation_deg": 57.962832,
+          "maximum_elevation_time_utc": "2026-09-03T16:44:09.557000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-TANGENT-20260903T163825622000"
+        },
+        {
+          "station_key": "SYN-GS-POLAR",
+          "aos_utc": "2026-09-03T16:48:24.534000Z",
+          "los_utc": "2026-09-03T16:58:46.657000Z",
+          "duration_s": 622.122224,
+          "maximum_elevation_deg": 24.635126,
+          "maximum_elevation_time_utc": "2026-09-03T16:53:35.872000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-POLAR-20260903T164824534000"
+        },
+        {
+          "station_key": "SYN-GS-GRAZE",
+          "aos_utc": "2026-09-03T16:55:35.738000Z",
+          "los_utc": "2026-09-03T17:00:36.021000Z",
+          "duration_s": 300.282935,
+          "maximum_elevation_deg": 7.41111,
+          "maximum_elevation_time_utc": "2026-09-03T16:58:06.146000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-GRAZE-20260903T165535738000"
+        },
+        {
+          "station_key": "SYN-GS-TANGENT",
+          "aos_utc": "2026-09-03T18:18:54.013000Z",
+          "los_utc": "2026-09-03T18:26:56.985000Z",
+          "duration_s": 482.97235,
+          "maximum_elevation_deg": 12.917376,
+          "maximum_elevation_time_utc": "2026-09-03T18:22:54.537000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-TANGENT-20260903T181854013000"
+        },
+        {
+          "station_key": "SYN-GS-POLAR",
+          "aos_utc": "2026-09-03T18:27:08.493000Z",
+          "los_utc": "2026-09-03T18:38:01.073000Z",
+          "duration_s": 652.579404,
+          "maximum_elevation_deg": 31.111883,
+          "maximum_elevation_time_utc": "2026-09-03T18:32:35.148000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-POLAR-20260903T182708493000"
+        },
+        {
+          "station_key": "SYN-GS-GRAZE",
+          "aos_utc": "2026-09-03T18:32:22.386000Z",
+          "los_utc": "2026-09-03T18:42:46.419000Z",
+          "duration_s": 624.033685,
+          "maximum_elevation_deg": 25.355113,
+          "maximum_elevation_time_utc": "2026-09-03T18:37:35.789000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-GRAZE-20260903T183222386000"
+        },
+        {
+          "station_key": "SYN-GS-POLAR",
+          "aos_utc": "2026-09-03T20:05:40.479000Z",
+          "los_utc": "2026-09-03T20:16:56.743000Z",
+          "duration_s": 676.263753,
+          "maximum_elevation_deg": 40.22046,
+          "maximum_elevation_time_utc": "2026-09-03T20:11:18.995000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-POLAR-20260903T200540479000"
+        },
+        {
+          "station_key": "SYN-GS-GRAZE",
+          "aos_utc": "2026-09-03T20:10:07.419000Z",
+          "los_utc": "2026-09-03T20:21:47.817000Z",
+          "duration_s": 700.398102,
+          "maximum_elevation_deg": 81.379366,
+          "maximum_elevation_time_utc": "2026-09-03T20:15:59.266000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-GRAZE-20260903T201007419000"
+        },
+        {
+          "station_key": "SYN-GS-MIDLAT",
+          "aos_utc": "2026-09-03T21:29:46.064000Z",
+          "los_utc": "2026-09-03T21:40:26.067000Z",
+          "duration_s": 640.003136,
+          "maximum_elevation_deg": 32.557477,
+          "maximum_elevation_time_utc": "2026-09-03T21:35:04.594000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-MIDLAT-20260903T212946064000"
+        },
+        {
+          "station_key": "SYN-GS-POLAR",
+          "aos_utc": "2026-09-03T21:44:02.697000Z",
+          "los_utc": "2026-09-03T21:55:33.225000Z",
+          "duration_s": 690.528271,
+          "maximum_elevation_deg": 50.942129,
+          "maximum_elevation_time_utc": "2026-09-03T21:49:48.278000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-POLAR-20260903T214402697000"
+        },
+        {
+          "station_key": "SYN-GS-GRAZE",
+          "aos_utc": "2026-09-03T21:47:56.723000Z",
+          "los_utc": "2026-09-03T21:58:52.227000Z",
+          "duration_s": 655.503992,
+          "maximum_elevation_deg": 36.204749,
+          "maximum_elevation_time_utc": "2026-09-03T21:53:25.433000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-GRAZE-20260903T214756723000"
+        },
+        {
+          "station_key": "SYN-GS-MIDLAT",
+          "aos_utc": "2026-09-03T23:07:46.542000Z",
+          "los_utc": "2026-09-03T23:17:47.114000Z",
+          "duration_s": 600.572129,
+          "maximum_elevation_deg": 22.967997,
+          "maximum_elevation_time_utc": "2026-09-03T23:12:44.972000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-MIDLAT-20260903T230746542000"
+        },
+        {
+          "station_key": "SYN-GS-POLAR",
+          "aos_utc": "2026-09-03T23:22:17.590000Z",
+          "los_utc": "2026-09-03T23:33:54.630000Z",
+          "duration_s": 697.039799,
+          "maximum_elevation_deg": 60.164375,
+          "maximum_elevation_time_utc": "2026-09-03T23:28:06.289000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-POLAR-20260903T232217590000"
+        },
+        {
+          "station_key": "SYN-GS-GRAZE",
+          "aos_utc": "2026-09-03T23:25:27.866000Z",
+          "los_utc": "2026-09-03T23:34:44.402000Z",
+          "duration_s": 556.536694,
+          "maximum_elevation_deg": 18.751555,
+          "maximum_elevation_time_utc": "2026-09-03T23:30:06.443000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-GRAZE-20260903T232527866000"
+        }
+      ]
+    },
+    {
+      "window": "W2",
+      "source_reports": {
+        "EVD-ORB-02-W2-maxelev.report": "3bd5d375d6a74d478d06440e40835a737a4486cb3ba743186903fd323e87692a",
+        "EVD-ORB-02-W2-legacy.report": "9202930751df565b50fdce532a5e091c1ecfd960a2c97bc8d8518539325766f8"
+      },
+      "stations_reported": [
+        "SYN-GS-EQUATOR",
+        "SYN-GS-GRAZE",
+        "SYN-GS-MIDLAT",
+        "SYN-GS-POLAR",
+        "SYN-GS-TANGENT"
+      ],
+      "zero_contact_stations": [
+        "SYN-GS-EQUATOR",
+        "SYN-GS-GRAZE",
+        "SYN-GS-TANGENT"
+      ],
+      "pass_count_by_station": {
+        "SYN-GS-EQUATOR": 0,
+        "SYN-GS-GRAZE": 0,
+        "SYN-GS-MIDLAT": 2,
+        "SYN-GS-POLAR": 1,
+        "SYN-GS-TANGENT": 0
+      },
+      "total_pass_count": 3,
+      "passes": [
+        {
+          "station_key": "SYN-GS-MIDLAT",
+          "aos_utc": "2026-09-03T10:32:00.000000Z",
+          "los_utc": "2026-09-03T10:37:26.574000Z",
+          "duration_s": 326.573633,
+          "maximum_elevation_deg": 37.377911,
+          "maximum_elevation_time_utc": "2026-09-03T10:32:00.000000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-MIDLAT-20260903T103200000000"
+        },
+        {
+          "station_key": "SYN-GS-POLAR",
+          "aos_utc": "2026-09-03T11:50:46.979000Z",
+          "los_utc": "2026-09-03T12:00:30.319000Z",
+          "duration_s": 583.339758,
+          "maximum_elevation_deg": 19.635845,
+          "maximum_elevation_time_utc": "2026-09-03T11:55:38.555000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-POLAR-20260903T115046979000"
+        },
+        {
+          "station_key": "SYN-GS-MIDLAT",
+          "aos_utc": "2026-09-03T12:04:33.804000Z",
+          "los_utc": "2026-09-03T12:10:00.000000Z",
+          "duration_s": 326.196077,
+          "maximum_elevation_deg": 20.727573,
+          "maximum_elevation_time_utc": "2026-09-03T12:09:21.525000Z",
+          "stable_key": "ORB-EVD-ORB-02-SYN-GS-MIDLAT-20260903T120433804000"
+        }
+      ]
+    }
+  ]
+}

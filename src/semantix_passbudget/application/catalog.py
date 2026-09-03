@@ -21,6 +21,7 @@ from typing import Any
 from uuid import uuid4
 
 from semantix_passbudget.application.decompose import PROFILE_SCHEMA_VERSION, decompose_snapshot
+from semantix_passbudget.domain import limits
 from semantix_passbudget.domain.canonical import (
     CANONICALIZATION_REVISION,
     canonical_bytes,
@@ -101,6 +102,16 @@ class CatalogService:
         change_note: str | None = None,
         based_on_revision_id: str | None = None,
     ) -> ProfileRevisionRecord:
+        # A revision payload is free-form by contract, which is exactly why it needs a ceiling.
+        # Enforced here rather than in the HTTP layer so every caller of the catalog is covered.
+        limits.enforce(
+            limit_name="profile revision payload size",
+            actual=len(canonical_bytes(payload)),
+            maximum=limits.MAX_PROFILE_REVISION_PAYLOAD_BYTES,
+            unit="canonical bytes",
+            scope="profile_revision",
+            field_path="payload",
+        )
         head = self._repository.get_profile(profile_id)
         if head is None:
             raise _error("PROFILE_NOT_FOUND", "No profile exists for this identifier.", "profile")

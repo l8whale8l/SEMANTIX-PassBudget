@@ -1,0 +1,40 @@
+Target: VirtSat
+
+Observer: SYN_GS_MIDLAT
+Start Time (UTC)            Stop Time (UTC)               Duration (s)         
+03 Sep 2026 10:32:00.000    03 Sep 2026 10:37:26.574      326.57363318    
+03 Sep 2026 12:04:33.804    03 Sep 2026 12:10:00.000      326.19607664    
+
+
+Number of events : 2
+
+
+Observer: SYN_GS_EQUATOR
+There are no contact events in the time interval 03 Sep 2026 10:32:00.000 to 03 Sep 2026 12:10:00.000
+
+
+Number of events : 0
+
+
+Observer: SYN_GS_POLAR
+Start Time (UTC)            Stop Time (UTC)               Duration (s)         
+03 Sep 2026 11:50:46.979    03 Sep 2026 12:00:30.319      583.33975801    
+
+
+Number of events : 1
+
+
+Observer: SYN_GS_GRAZE
+There are no contact events in the time interval 03 Sep 2026 10:32:00.000 to 03 Sep 2026 12:10:00.000
+
+
+Number of events : 0
+
+
+Observer: SYN_GS_TANGENT
+There are no contact events in the time interval 03 Sep 2026 10:32:00.000 to 03 Sep 2026 12:10:00.000
+
+
+Number of events : 0
+
+

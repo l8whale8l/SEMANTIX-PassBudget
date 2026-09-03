@@ -19,6 +19,7 @@ from semantix_passbudget.domain.scheduler import Candidate
 from semantix_passbudget.domain.time import TimeInterval, UtcInstant
 
 WINDOW = TimeInterval(UtcInstant(0), UtcInstant(60_000_000))
+MB = 1_000_000
 
 
 def _candidate(key: str, start_s: int, end_s: int, capacity: int, rank: int = 0) -> Candidate:
@@ -48,13 +49,21 @@ def _profile(capacity: int) -> CapacityProfile:
     )
 
 
-def _payload(key: str, size: int, sequence: int, deadline_s: int | None) -> Payload:
+def _payload(
+    key: str,
+    size: int,
+    sequence: int,
+    deadline_s: int | None,
+    *,
+    service_class: ServiceClass = ServiceClass.MANDATORY,
+    ready_s: int = 0,
+) -> Payload:
     return Payload(
         stable_key=key,
         logical_size_bytes=size,
         storage_size_bytes=size,
-        ready_at=UtcInstant(0),
-        service_class=ServiceClass.MANDATORY,
+        ready_at=UtcInstant(ready_s * 1_000_000),
+        service_class=service_class,
         deadline_at=UtcInstant(deadline_s * 1_000_000) if deadline_s else None,
         deadline_severity=0,
         mission_priority=100 - sequence,
@@ -70,10 +79,10 @@ def _select(
     profiles: dict[str, CapacityProfile],
     payloads: tuple[Payload, ...],
 ) -> list[str]:
-    selected, _ = select_queue_aware_nonoverlap(
+    outcome = select_queue_aware_nonoverlap(
         candidates, profiles, payloads, (), DISABLED_STORAGE, WINDOW
     )
-    return [item.stable_key for item in selected]
+    return [item.stable_key for item in outcome.sessions]
 
 
 def test_mandatory_horizon_feasibility_precedes_capacity() -> None:
@@ -91,14 +100,14 @@ def test_selection_reason_names_the_objective_step_that_decided_it() -> None:
     x = _candidate("X", 0, 10, 10_000_000)
     y = _candidate("Y", 0, 4, 6_000_000)
     z = _candidate("Z", 20, 30, 10_000_000)
-    _, reasons = select_queue_aware_nonoverlap(
+    reasons = select_queue_aware_nonoverlap(
         (x, y, z),
         {"X": _profile(10_000_000), "Y": _profile(6_000_000), "Z": _profile(10_000_000)},
         (_payload("M1", 6_000_000, 1, 5), _payload("M2", 10_000_000, 2, None)),
         (),
         DISABLED_STORAGE,
         WINDOW,
-    )
+    ).reasons
     assert reasons["Y"].value == "SESSION_SELECTED_MANDATORY_FEASIBILITY"
 
 
@@ -134,6 +143,64 @@ def test_dense_overlap_component_is_blocked_instead_of_approximating() -> None:
     with pytest.raises(DomainValidationError) as caught:
         _select(candidates, profiles, (_payload("M1", 1_000, 1, 5),))
     assert caught.value.detail.code == "QUEUE_HORIZON_SEARCH_BUDGET_EXCEEDED"
+
+
+#: The two-component counterexample.
+#:
+#: A/B are one conflict component and C/D another, so no choice inside a single component can
+#: reach the best answer. Committing component by component with a byte-maximising estimate of
+#: the future picks B+C; the whole-horizon optimum is A+D. See
+#: `test_cross_component_alternatives_are_evaluated_against_the_whole_horizon`.
+_CROSS_COMPONENT_CANDIDATES = (
+    _candidate("A", 0, 6, 11 * MB),
+    _candidate("B", 5, 8, 5 * MB),
+    _candidate("C", 10, 20, 10 * MB),
+    _candidate("D", 10, 12, 5 * MB),
+)
+_CROSS_COMPONENT_PROFILES = {
+    item.station_key: _profile(item.capacity_bytes) for item in _CROSS_COMPONENT_CANDIDATES
+}
+_CROSS_COMPONENT_PAYLOADS = (
+    _payload("M", 5 * MB, 1, 15, service_class=ServiceClass.MANDATORY, ready_s=5),
+    _payload("P", 11 * MB, 2, None, service_class=ServiceClass.PRIORITY, ready_s=0),
+)
+
+
+def test_cross_component_alternatives_are_evaluated_against_the_whole_horizon() -> None:
+    """Regression: the objective is global, so component-local commitment is not enough.
+
+    Both A+D and B+C keep the single MANDATORY payload on time, so the first two objective
+    terms tie and the decision falls to policy utility. P is an 11 MB atomic object: it fits
+    A exactly and fits nothing else, so choosing B in the first component destroys 11 MB of
+    utility that no later component can recover. A+D also carries more scheduled bytes
+    (16 MB against 15 MB), so it wins twice over and the answer is not a tie.
+    """
+    assert [
+        tuple(item.stable_key for item in component)
+        for component in conflict_components(_CROSS_COMPONENT_CANDIDATES)
+    ] == [("A", "B"), ("D", "C")], "the counterexample needs exactly two conflict components"
+    outcome = select_queue_aware_nonoverlap(
+        _CROSS_COMPONENT_CANDIDATES,
+        _CROSS_COMPONENT_PROFILES,
+        _CROSS_COMPONENT_PAYLOADS,
+        (),
+        DISABLED_STORAGE,
+        WINDOW,
+    )
+    selected, reasons = outcome.sessions, outcome.reasons
+    assert [item.stable_key for item in selected] == ["A", "D"]
+    assert outcome.status.value == "EXACT"
+    assert outcome.globally_optimal is True
+    # The reason names the step this component actually won on, not the step that separated the
+    # two globally best combinations: both A and D beat their rivals on policy utility.
+    assert reasons["A"].value == "SESSION_SELECTED_POLICY_UTILITY"
+    assert reasons["D"].value == "SESSION_SELECTED_POLICY_UTILITY"
+
+
+def test_cross_component_selection_is_independent_of_input_order() -> None:
+    order = (3, 1, 0, 2)
+    permuted = tuple(_CROSS_COMPONENT_CANDIDATES[index] for index in order)
+    assert _select(permuted, _CROSS_COMPONENT_PROFILES, _CROSS_COMPONENT_PAYLOADS) == ["A", "D"]
 
 
 def test_full_tie_resolves_by_lexical_station_id() -> None:
