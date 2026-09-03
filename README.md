@@ -7,17 +7,35 @@ It does **not** guarantee ground-station availability, communication success, ac
 ## Project status
 
 The executable P0 core covers synthetic contact and capacity arithmetic, overlap resolution, a
-horizon-aware queue objective, an event-ordered queue/storage ledger, bundle and dependency
-contracts, named gap metrics, reporting, run comparison, and three interchangeable persistence
-tiers. The CLI and the HTTP API call the same application service. These are synthetic
-concept-validation results, not orbit or radio-performance predictions.
+horizon-aware queue objective evaluated over the whole analysis window, an event-ordered
+queue/storage ledger, bundle and dependency contracts, named gap metrics, reporting, run
+comparison, and three interchangeable persistence tiers. The queue objective is global and is
+searched exactly by default; an instance too dense in genuine conflicts is refused by name rather
+than answered with a silent approximation, and a declared approximate mode exists for those
+instances (see **Execution strategy**). The CLI and the HTTP API call the same application
+service. These are synthetic concept-validation results, not orbit or radio-performance
+predictions.
 
-Release status remains `P0_RELEASE_BLOCKED_NEEDS_EVIDENCE`. The reason is recorded artifact by
-artifact in [the orbit release gate audit](docs/specs/ORBIT_RELEASE_GATE.md): no frozen public TLE,
-no independent oracle, and no cross-tool delta table exists yet, so no production orbit provider was
-written. Specification conflicts and how each was resolved are in
+The orbit evidence that blocked release is now **complete**. A frozen public TLE and a synthetic
+circular orbit are each computed by the product engine and independently by NASA GMAT, and the two
+agree far inside tolerances that were fixed before anything was computed — worst AOS error 17 ms
+against a 1.000 s ceiling, over 58 passes, with zero ceiling breaches. See
+[the orbit evidence](evidence/orbit/README.md) and
+[the release gate audit](docs/specs/ORBIT_RELEASE_GATE.md).
+
+The orbit evidence gate is **PASS**. The release status is `P0_RELEASE_BLOCKED_ORBIT_INTEGRATION`:
+the cross-tool agreement is proven, and this change set connects the verified orbit engine to the
+product. `ORBIT_DERIVED` now takes an orbit assumption (a user TLE or literal two-body elements)
+plus WGS-84 station coordinates and a minimum elevation, generates the day's contact windows, and
+feeds them into the existing assumed-throughput capacity and model-output prioritisation over both
+the API and the CLI (see `PB-GOLDEN-ORB-01`). The remaining gate is CI: the release is unblocked
+only once the required GitHub Actions pass on the pushed commit. Every orbit result is an
+assumption-based estimate over synthetic inputs, never a KMU-ET02 performance figure.
+
+Specification conflicts and how each was resolved are in
 [the conflict register](docs/specs/SPEC_CONFLICT_REGISTER.md), and the acceptance-criteria status is
-in [the P0 acceptance matrix](docs/specs/P0_ACCEPTANCE_MATRIX.md).
+in [the P0 acceptance matrix](docs/specs/P0_ACCEPTANCE_MATRIX.md), with the wider Definition of
+Done tracked in [the DoD status](docs/specs/P0_DEFINITION_OF_DONE.md).
 
 ## Architecture direction
 
@@ -167,11 +185,109 @@ them contains a KMU-ET02 specification, a real TLE, a station coordinate, or a c
 carries the `QUEUE_AWARE` oracle from the golden design document; both use identical contact and
 capacity inputs. See `CONFLICT-FIX-01` in the conflict register.
 
+## Execution strategy
+
+The `QUEUE_AWARE` objective is global: conflict components are coupled through the payload queue,
+so they cannot be decided independently, and a jointly optimal selection is NP-hard. One algorithm
+cannot be both always optimal and always affordable, so the scenario declares which it wants.
+
+| | `EXACT_GLOBAL` (default) | `BOUNDED_APPROXIMATE` |
+|---|---|---|
+| Guarantees | the global optimum of the specified objective | feasible and deterministic, **and nothing else** |
+| How | decompose into conflict components, then score every combination of the branching components' alternatives with one whole-horizon rollout each | three fixed deterministic polynomial interval schedules, each producing a complete selection, scored by the same objective |
+| Candidate generation | full maximal-set enumeration (exponential in one component's overlap density) | no component decomposition, no maximal-set enumeration |
+| Cost | combinations × instance size | three schedules plus at most three rollouts, whatever the overlap density |
+| Budgets | `MAXIMAL_SET_BUDGET`, `GLOBAL_COMBINATION_BUDGET`, `EXACT_WORK_BUDGET` | none — those three and their errors do not apply on this path |
+| `optimization_status` | `EXACT` | `APPROXIMATE` |
+| `globally_optimal` | `true` | `false` |
+
+The two modes do not share a candidate generator, and the strategy is read before either one
+runs. That is a correctness requirement rather than a tidiness one: a single densely connected
+component can hold more maximal sets than the exact budget allows while being perfectly ordinary
+to schedule greedily, so a shared decomposition would make the approximation refuse exactly the
+instances it exists to answer.
+
+**Nothing switches modes on your behalf.** An exact search that exceeds one of its three budgets
+fails with a named error; it does not quietly return an approximation. Getting an approximate answer requires asking for one, and the field
+belongs to the *scenario*, not to the request — a run names an immutable input and does not
+reach in and change it:
+
+```json
+{
+  "snapshot": {
+    "schema_version": "passbudget-input-0.2",
+    "fixture_id": "PB-GOLDEN-QUEUE-01",
+    "analysis_mode": "QUEUE_AWARE",
+    "execution_strategy": "BOUNDED_APPROXIMATE",
+    "...": "the rest of the scenario"
+  }
+}
+```
+
+A request-level `execution_strategy` is refused: the packaged fixtures are `EXACT_GLOBAL`
+scenarios, and running one approximately means running a different scenario, which is exactly
+what the differing input hash records.
+
+The strategy is a semantic input, not a tuning knob. It appears in the canonical input snapshot,
+the result, the provenance, the engine manifest and every hash — two runs that differ only in
+strategy are two different questions, not two answers to one. Every result carries an
+`optimization` block, an approximate result carries a `NOT_GLOBALLY_OPTIMAL` warning, and
+comparing results of different grades produces an `OPTIMIZATION_GRADE_MISMATCH` warning so a
+number from one mode is not read as a number from the other.
+
+`optimality_gap` is always `null` today. A bound on the scheduled-byte term alone is cheap and
+exact, but that is the fifth term of a lexicographic objective: a selection can be byte-optimal
+and still miss a MANDATORY deadline the optimum meets, so publishing it under that name would
+claim more than the number supports.
+
+`NETWORK_ONLY` is solved exactly by the maximum-capacity dynamic program, so the choice does not
+apply there and declaring `BOUNDED_APPROXIMATE` for it is refused.
+
+See `P0_FUNCTIONAL_SPEC.md` §6.5.1 and `CONFLICT-QUEUE-02` in the conflict register.
+
+## Input ceilings
+
+`P0_FUNCTIONAL_SPEC.md` §15.4 requires bounds on input size so a public deployment cannot be
+driven into resource exhaustion. Every ceiling lives in one module,
+`src/semantix_passbudget/domain/limits.py`, and none of them reads the environment.
+
+| Ceiling | Value |
+|---|---|
+| Analysis window | 31 days |
+| Stations | 200 |
+| Contacts | 20,000 |
+| Payloads | 10,000 |
+| Payload dependencies | 20,000 |
+| Rate segments per station | 512 |
+| Time reserves per station | 512 |
+| Synthetic delivery events | 10,000 |
+| HTTP request body | 8 MiB |
+| Profile revision payload | 256 KiB |
+
+The request-body ceiling is enforced on **received** bytes as well as on the declared
+`Content-Length`, and it stops mid-stream rather than after assembling the body: a chunked request
+declares no length at all, and one that declares a length is under no obligation to honour it.
+
+The scenario ceilings are applied in `ScenarioSnapshot.validate()`, not in a DTO: HTTP, the CLI
+and a direct domain caller all reach `validate()`, and only some of them reach a DTO. An input
+over a ceiling is refused whole with `INPUT_LIMIT_EXCEEDED` and a 4xx status; it is never
+truncated, and it never becomes a run. That is deliberately different from a branch-local
+calculation failure, where the run exists and its successful branches stay readable. The error
+names the limit and the maximum, never the input.
+
+Every ceiling admits the specification's reference analysis — one spacecraft, 20 ground stations,
+a 7-day window, 10,000 payloads — and the payload ceiling *is* that reference size, so 10,000 is
+accepted and 10,001 is refused.
+
 ## HTTP API
 
 ```text
 uvicorn semantix_passbudget.interfaces.api.app:app --host 127.0.0.1 --port 8000
 ```
+
+Over HTTP, `fixture` names a public fixture identifier and nothing else. The CLI may still be
+given a path — it runs as you, on your machine, against your files — but the API never opens a
+file named by a request, and a rejection does not repeat the requested value back.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -209,6 +325,42 @@ On the PostgreSQL tier only, `GET /runs/{id}/results`, `/report` and `POST /comp
 nowhere to store the rendered result document, and this project does not invent a table for it. The
 gap is registered as `CONFLICT-STORE-02`.
 
+## Orbit verification
+
+The orbit path is verified against an independent implementation, never against itself.
+
+| Role | Tool | Ships? |
+|---|---|---|
+| Product engine | `adapters/orbit` on [python-sgp4](https://pypi.org/project/sgp4/) 2.27 (MIT) | Yes — a core dependency (pure Python, no data files, no network) now that ORBIT_DERIVED is live |
+| Independent oracle | NASA GMAT R2026a (Apache-2.0) | **No.** Offline only; it contributes committed text files. |
+
+Every definition, window, mask and tolerance is fixed in
+[the verification contract](docs/specs/ORBIT_VERIFICATION_CONTRACT.md), which was written before any
+orbit code existed so that no tolerance could be chosen after seeing a number. The expected tables
+are generated from preserved raw GMAT output by a committed converter, so no expected value is a
+hand-copied literal.
+
+This is what a second implementation is for: the first `EVD-ORB-02` run failed with 22.3 s AOS
+errors, and the cause was a real defect — an IAU-76 precession rotation applied about the wrong
+axis, worth 18.29 km of Earth-fixed position. It produced entirely plausible output and no amount
+of self-consistency testing would have found it.
+
+The cross-tool tests run in the ordinary suite and need neither GMAT nor the network. The fully
+synthetic `EVD-ORB-02` fixture is committed and is the public cross-tool gate. `EVD-ORB-01` is
+derived from a CelesTrak-redistributed TLE whose public-redistribution terms are unresolved
+(`Q-ORB-LICENSE-01`), so its inputs and oracle artifacts are kept local only; its cases run and
+pass where that evidence is present and are skipped — never counted as a pass — where it is
+deliberately absent, as in public CI:
+
+```bash
+pytest tests/integration/test_orbit_cross_tool.py
+```
+
+These are implementation-agreement results on a defined problem, **not** real-world orbital
+accuracy and **not** KMU-ET02 performance: the station coordinates are synthetic, and UT1-UTC and
+polar motion are forced to zero in both tools. The limitations are listed in
+[the evidence README](evidence/orbit/README.md).
+
 ## Quality checks
 
 ```text
@@ -245,7 +397,7 @@ service at all**. It has four jobs:
 
 | Job | What it proves |
 |---|---|
-| `verify` | lint, formatting, types, the full 257-test suite, `verify-golden`, `where`, the secret scan |
+| `verify` | lint, formatting, types, the full 366-test suite including the cross-tool orbit evidence, `verify-golden`, `where`, the secret scan |
 | `clean-install` | a wheel installs and runs the golden verification on a machine with no source tree |
 | `docker` | the image builds, its CLI works, and a run computed through the API is still readable after the container restarts |
 | `audit` | no known advisory affects the dependency set |
@@ -306,6 +458,9 @@ data into the image.
 - [P0 Definition of Done status](docs/specs/P0_DEFINITION_OF_DONE.md)
 - [Specification conflict register](docs/specs/SPEC_CONFLICT_REGISTER.md)
 - [Orbit release gate audit](docs/specs/ORBIT_RELEASE_GATE.md)
+- [Orbit verification contract](docs/specs/ORBIT_VERIFICATION_CONTRACT.md)
+- [Orbit evidence: EVD-ORB-01 and EVD-ORB-02](evidence/orbit/README.md)
+- [ADR-0004: orbit engine, independent oracle, and the JVM question](docs/architecture/ADR-0004-orbit-engine-and-oracle.md)
 - [Database schema](docs/database/database_schema_v0.1.md)
 - [Schema decisions](docs/database/schema_decisions.md)
 - [PostgreSQL 16+ DDL](db/postgresql/schema_v0_1.sql) and [the v0.2 delta](db/postgresql/schema_v0_2_contact_source.sql)

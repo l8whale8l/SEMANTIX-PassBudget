@@ -53,6 +53,15 @@ htmlcov/
 build/
 dist/
 
+# Orbit evidence withheld from the public repository pending Q-ORB-LICENSE-01.
+# EVD-ORB-01 is derived from a CelesTrak-redistributed TLE whose public-redistribution terms are
+# unresolved, so its inputs, provenance, raw element set and the GMAT oracle artifacts that embed
+# the same element string are kept local only. The fully synthetic EVD-ORB-02 is committed and is
+# the public cross-tool gate. See docs/specs/ORBIT_VERIFICATION_CONTRACT.md §11 (Q-ORB-LICENSE-01).
+evidence/orbit/EVD-ORB-01/
+evidence/orbit/oracle/gmat/EVD-ORB-01*
+evidence/orbit/oracle/gmat/raw/EVD-ORB-01*
+
 # Local tooling and OS
 .idea/
 .vscode/

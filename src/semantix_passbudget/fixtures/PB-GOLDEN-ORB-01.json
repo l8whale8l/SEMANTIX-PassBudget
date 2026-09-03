@@ -1,0 +1,157 @@
+{
+  "schema_version": "passbudget-input-0.2",
+  "fixture_id": "PB-GOLDEN-ORB-01",
+  "analysis_mode": "QUEUE_AWARE",
+  "analysis_window": {
+    "start": "2026-09-03T00:00:00Z",
+    "end": "2026-09-04T00:00:00Z"
+  },
+  "source_revision_id": "ORB-GOLDEN-R1",
+  "policy_revision_id": "DEADLINE_SEVERITY_CORE_V1",
+  "safety_notice": "KMU 실제 성능이 아닌 가정 기반 추정값. Synthetic reference orbit and synthetic ground stations; contact windows are an assumption-based estimate, not KMU-ET02 operational performance.",
+  "contact_source": "ORBIT_DERIVED",
+  "orbit": {
+    "kind": "TWO_BODY_V1",
+    "two_body": {
+      "epoch": "2026-09-03T00:00:00.000000Z",
+      "semi_major_axis_mm": 7078137000,
+      "eccentricity_ppb": 0,
+      "inclination_udeg": 98000000,
+      "raan_udeg": 90000000,
+      "argument_of_perigee_udeg": 0,
+      "true_anomaly_udeg": 0,
+      "mu_m3_per_s2": 398600441500000
+    }
+  },
+  "stations": [
+    {
+      "stable_key": "SYN-GS-MIDLAT",
+      "preference_rank": 0,
+      "site": {
+        "latitude_udeg": 37600000,
+        "longitude_east_udeg": 127000000,
+        "ellipsoidal_height_mm": 100000,
+        "minimum_elevation_udeg": 5000000
+      },
+      "capacity": {
+        "provider": "FIXED_RATE",
+        "rate_semantics": "NET_PAYLOAD_BITRATE_PRE_LOSS",
+        "acquisition_guard_us": 0,
+        "release_guard_us": 0,
+        "rate_segments": [
+          {
+            "ordinal": 0,
+            "start_offset_us": 0,
+            "end_offset_us": 86400000000,
+            "numerator_bits": 2000000,
+            "denominator_seconds": 1
+          }
+        ],
+        "active_efficiency": {
+          "numerator": 1,
+          "denominator": 2
+        },
+        "evidence_state": "PROXY",
+        "source_revision_id": "ORB-GOLDEN-R1",
+        "rationale": "Assumed effective downlink rate and safety-factor efficiency; not a measured KMU link.",
+        "measurement_point": "SYNTHETIC_SPACECRAFT_APPLICATION_EGRESS",
+        "rate_scope": "ACTIVE_DATA_WINDOW",
+        "accounted_effects": [
+          "CODING",
+          "PROTOCOL_OVERHEAD",
+          "RESIDUAL_LOSS"
+        ]
+      }
+    },
+    {
+      "stable_key": "SYN-GS-EQUATOR",
+      "preference_rank": 1,
+      "site": {
+        "latitude_udeg": 0,
+        "longitude_east_udeg": 60000000,
+        "ellipsoidal_height_mm": 0,
+        "minimum_elevation_udeg": 5000000
+      },
+      "capacity": {
+        "provider": "FIXED_RATE",
+        "rate_semantics": "NET_PAYLOAD_BITRATE_PRE_LOSS",
+        "acquisition_guard_us": 0,
+        "release_guard_us": 0,
+        "rate_segments": [
+          {
+            "ordinal": 0,
+            "start_offset_us": 0,
+            "end_offset_us": 86400000000,
+            "numerator_bits": 2000000,
+            "denominator_seconds": 1
+          }
+        ],
+        "active_efficiency": {
+          "numerator": 1,
+          "denominator": 2
+        },
+        "evidence_state": "PROXY",
+        "source_revision_id": "ORB-GOLDEN-R1",
+        "rationale": "Assumed effective downlink rate and safety-factor efficiency; not a measured KMU link.",
+        "measurement_point": "SYNTHETIC_SPACECRAFT_APPLICATION_EGRESS",
+        "rate_scope": "ACTIVE_DATA_WINDOW",
+        "accounted_effects": [
+          "CODING",
+          "PROTOCOL_OVERHEAD",
+          "RESIDUAL_LOSS"
+        ]
+      }
+    }
+  ],
+  "contacts": [],
+  "payloads": [
+    {
+      "stable_key": "WILDFIRE-DETECT",
+      "logical_size_bytes": 80000000,
+      "storage_size_bytes": 80000000,
+      "ready_at": "2026-09-03T00:00:00Z",
+      "service_class": "MANDATORY",
+      "deadline_severity": 0,
+      "mission_priority": 100,
+      "queue_sequence": 1,
+      "segmentation": "ATOMIC_OBJECT",
+      "resume_supported": false,
+      "display_name": "wildfire_detection.geojson",
+      "media_type": "application/geo+json",
+      "producer_kind": "MODEL_DERIVED"
+    },
+    {
+      "stable_key": "FIGHTER-TRACK",
+      "logical_size_bytes": 200000000,
+      "storage_size_bytes": 200000000,
+      "ready_at": "2026-09-03T00:00:00Z",
+      "service_class": "PRIORITY",
+      "deadline_severity": 0,
+      "mission_priority": 80,
+      "queue_sequence": 2,
+      "segmentation": "FIXED_CHUNK",
+      "chunk_size_bytes": 1000000,
+      "resume_supported": true,
+      "display_name": "fighter_track.bin",
+      "media_type": "application/octet-stream",
+      "producer_kind": "MODEL_DERIVED"
+    },
+    {
+      "stable_key": "SHIP-DETECT",
+      "logical_size_bytes": 400000000,
+      "storage_size_bytes": 400000000,
+      "ready_at": "2026-09-03T00:00:00Z",
+      "service_class": "BEST_EFFORT",
+      "deadline_severity": 0,
+      "mission_priority": 40,
+      "queue_sequence": 3,
+      "segmentation": "FIXED_CHUNK",
+      "chunk_size_bytes": 1000000,
+      "resume_supported": true,
+      "display_name": "ship_detection.bin",
+      "media_type": "application/octet-stream",
+      "producer_kind": "MODEL_DERIVED"
+    }
+  ],
+  "decision_question": "Given a synthetic 700 km sun-synchronous reference orbit and two synthetic ground stations, how many contacts and how much daily transfer capacity are estimated, and which of the wildfire, fighter and ship model outputs can be sent first under the assumed effective rate?"
+}

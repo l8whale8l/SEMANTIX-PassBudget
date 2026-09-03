@@ -266,6 +266,64 @@ station_preference_rank ASC
 
 P0는 `session_selection_granularity=WHOLE_OPPORTUNITY`, `handover_policy=NONE`이다.
 
+#### 6.5.1 실행 전략 — `EXACT_GLOBAL`과 `BOUNDED_APPROXIMATE`
+
+> 추가: 2026-09-03 PM 결정 `(b)`. `SPEC_CONFLICT_REGISTER.md`의 `CONFLICT-QUEUE-02` 참조.
+> 위 §6.5의 objective 정의는 바뀌지 않는다. 이 절은 그 objective를 **어떻게 푸는지**와,
+> 각 방식이 무엇을 보증하고 무엇을 보증하지 않는지를 정한다.
+
+§6.5의 objective는 전역이고, 충돌 component 간 결합은 payload queue를 통해 일어나 분리되지
+않는다. 전역 최적 선택은 NP-hard이므로 하나의 알고리즘으로 "항상 최적이면서 항상 빠를" 수는
+없다. 따라서 `execution_strategy`를 시나리오의 **semantic input**으로 둔다.
+
+| | `EXACT_GLOBAL` (기본값) | `BOUNDED_APPROXIMATE` |
+|---|---|---|
+| 보증 | §6.5 objective의 전역 최적해 | feasible · deterministic **뿐** |
+| 방법 | 충돌 component로 분해하고 분기 component 대안의 모든 조합을 전체 분석기간 rollout으로 채점 | 고정된 3개의 다항시간 interval scheduling 정책이 각각 완전한 feasible selection을 만들고 그 중 최선을 같은 objective로 채점 |
+| 후보 생성 | maximal set 전체 열거 (겹침 밀도에 지수적) | component 분해·maximal set 열거 **없음** |
+| 비용 | 조합 수 × 입력 규모 | 3 schedule + 최대 3 rollout, 겹침 밀도와 무관 |
+| 상한 | `MAXIMAL_SET_BUDGET`, `GLOBAL_COMBINATION_BUDGET`, `EXACT_WORK_BUDGET` | **없음 — 위 세 상한과 그 오류는 이 경로에 적용되지 않는다** |
+| 상한 초과 시 | 구조화된 오류로 거부 | 해당 없음 |
+| `optimization_status` | `EXACT` | `APPROXIMATE` |
+| `globally_optimal` | `true` | `false` |
+
+**사용 조건.** 기본값은 `EXACT_GLOBAL`이다. exact 탐색이 상한을 초과하면 **실패한다**;
+approximate로 자동 전환하지 않는다. 근사 결과를 원하면 사용자가 `execution_strategy`를
+명시적으로 `BOUNDED_APPROXIMATE`로 선언해야 한다. 이 규칙의 목적은 "빠른 답"과 "옳은 답"이
+같은 이름으로 반환되는 상황을 만들지 않는 것이다.
+
+**exact 상한 두 가지.** 조합 수는 `GLOBAL_COMBINATION_BUDGET`, 조합 수 × 입력 규모로 추정한
+작업량은 `EXACT_WORK_BUDGET`으로 각각 제한한다. 후자가 필요한 이유는 조합 수만으로는 비용을
+말할 수 없기 때문이다 — 조합 하나가 전체 분석기간 rollout 하나이므로 §15.2의 60초 목표를
+사실상 무력화하는 입력이 조합 상한 안에 들어올 수 있다. 초과는 각각
+`QUEUE_HORIZON_GLOBAL_SEARCH_BUDGET_EXCEEDED`와
+`QUEUE_HORIZON_EXACT_WORK_BUDGET_EXCEEDED`로 거부한다.
+
+**두 mode는 후보 생성기를 공유하지 않는다.** 전략 분기는 후보 생성보다 먼저 일어난다. 이는
+설계 선택이 아니라 정확성 요건이다 — 하나의 조밀하게 연결된 component는 `MAXIMAL_SET_BUDGET`을
+넘는 maximal set을 가질 수 있지만 greedy scheduling으로는 평범하게 처리되므로, 분해를 공유하면
+근사 mode가 자신이 존재하는 이유인 바로 그 입력을 exact 전용 오류로 거부하게 된다.
+
+**approximate가 보증하지 않는 것.** 최적성, 최적해와의 거리, 그리고 두 approximate 결과 사이의
+비교 가능성. `optimality_gap`은 현재 항상 `null`이다. scheduled byte 항 하나에 대한 정확한
+상계는 값싸게 계산되지만, 그것은 lexicographic objective의 5번째 항일 뿐이어서 한 항의 gap을
+objective의 gap이라고 부를 수 없다(byte 최적이면서 MANDATORY deadline을 놓치는 선택이
+존재한다). objective 전체에 대한 bound가 생기기 전까지 이 필드는 null로 둔다.
+
+**결과 표기.** 모든 결과는 `optimization` 블록에 `execution_strategy`, `optimization_status`,
+`globally_optimal`, `optimality_gap`, `algorithm_revision`을 싣는다. approximate 결과에는
+`NOT_GLOBALLY_OPTIMAL` warning이 붙는다. 등급이 다른 두 결과를 비교하면 비교 문서에
+`OPTIMIZATION_GRADE_MISMATCH` warning이 붙는다 — 숫자 차이를 시나리오 차이로 읽는 것을 막기
+위해서다.
+
+**hash와 provenance.** `execution_strategy`는 canonical input snapshot, result, provenance,
+engine manifest, 그리고 persistence round trip에 모두 포함된다. 전략만 다른 두 실행은 같은
+질문에 대한 두 답이 아니라 **서로 다른 두 질문**이며, `input_snapshot_hash`부터 다르다.
+
+`NETWORK_ONLY`는 최대 용량 dynamic program으로 정확히 풀리므로 이 선택이 적용되지 않는다.
+`NETWORK_ONLY`에 `BOUNDED_APPROXIMATE`를 선언하면 `EXECUTION_STRATEGY_NOT_APPLICABLE`로
+거부한다.
+
 ### 6.6 payload queue
 
 - service class는 `MANDATORY`, `PRIORITY`, `BEST_EFFORT`다.
@@ -604,7 +662,7 @@ P-ORIGINAL remaining = 85,000,000 B
 | AC-P0-24 | branch-local failure | run PARTIAL, 유효한 선행 결과 조회 가능 |
 | AC-P0-25 | 공개 오류/로그 검사 | secret, SSH, DB URL, host absolute path 미노출 |
 
-실제 궤도 출시 gate는 별도다. frozen TLE 및 `VIRTUAL_CIRCULAR` 각각에 대해 production orbit provider와 독립 oracle의 AOS/LOS/max elevation 결과, tolerance와 provenance를 고정하기 전에는 `P0_RELEASE_BLOCKED_NEEDS_EVIDENCE`를 유지한다.
+실제 궤도 출시 gate는 별도다. production orbit provider와 독립 oracle(NASA GMAT)의 AOS/LOS/max elevation 결과, tolerance와 provenance는 합성 `VIRTUAL_CIRCULAR`(`EVD-ORB-02`)에 대해 고정·교차검증됐고(gate PASS), `ORBIT_DERIVED` 제품 통합이 구현됐다. release 상태는 `P0_RELEASE_BLOCKED_ORBIT_INTEGRATION`이며 pushed commit에서 required GitHub Actions가 green이 되면 해제된다. frozen TLE(`EVD-ORB-01`)의 public 게시는 `Q-ORB-LICENSE-01` 해결까지 보류한다.
 
 ## 15. 비기능 요구사항
 

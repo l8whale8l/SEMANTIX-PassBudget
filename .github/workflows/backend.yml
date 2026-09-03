@@ -22,11 +22,18 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: python -m pip install --upgrade pip
+      # The orbit engine (python-sgp4) is a core dependency now that the ORBIT_DERIVED gate is
+      # open (ADR-0004, PM decision). `[dev]` is enough; the `orbit` extra is kept as an empty
+      # compatibility alias.
       - run: python -m pip install -e ".[dev]"
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy src
-      # 254 tests. The 8 PostgreSQL cases skip here; the `postgresql` workflow runs them.
+      # The PostgreSQL cases skip here; the `postgresql` workflow runs them. The orbit cross-tool
+      # gate runs on the committed, fully synthetic EVD-ORB-02 (which needs neither GMAT nor the
+      # network). EVD-ORB-01 is derived from a CelesTrak TLE and is withheld pending
+      # Q-ORB-LICENSE-01, so its cross-tool cases skip here with an explicit reason rather than
+      # publishing the element set; a skipped case is reported as skipped, never as a pass.
       - run: pytest
       - run: passbudget verify-golden
       - run: passbudget where

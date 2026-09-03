@@ -108,6 +108,45 @@
 - 구현: `domain/queue.py::queue_order_key`가 §24.6 순서를 따른다. golden queue oracle은 모든
   severity가 0이라 결과가 바뀌지 않으며, `passbudget verify-golden`이 이를 확인한다.
 
+## CONFLICT-QUEUE-02 — 전역 objective와 조밀한 충돌의 계산 가능성
+
+| 문서 | 주장 |
+|---|---|
+| `골든시나리오설계도.md` §24, `P0_FUNCTIONAL_SPEC.md` §6.5 | `QUEUE_AWARE`는 "남은 분석기간의 미래 세션을 포함하는 deterministic rollout"으로 lexicographic objective를 적용한다 — 즉 목적함수가 전역이다 |
+| 계산 복잡도 | 충돌 component 간 결합은 payload queue 상태를 통해 일어나므로 분리되지 않고, 전역 최적 선택은 NP-hard다 |
+
+- 판정: `RESOLVED_BY_PM_DECISION (b)` — 2026-09-03
+- 근거: 두 요구를 동시에 만족하는 방법은 없다. 조합 폭발 앞에서 선택지는 (a) 명세의 전역
+  objective를 유지하고 계산 불가능한 입력을 거부하거나, (b) 답을 내되 component-local
+  휴리스틱으로 근사하는 것뿐이다. (b)는 결과를 최적이라고 부르면서 아닌 값을 반환하므로
+  채택하지 않았다. `QUEUE_AWARE_LEXICOGRAPHIC_HORIZON_V2`가 사실상 (b)였고,
+  `tests/unit/test_horizon.py`의 2-component 반례에서 오답을 냈다.
+- 구현: `domain/horizon.py`의 V3가 분기 component 대안의 모든 조합을 전체 분석기간 rollout으로
+  채점한다. 상한은 `MAXIMAL_SET_BUDGET`(component 내부)과
+  `GLOBAL_COMBINATION_BUDGET`(전역, 4096 조합)이며, 초과하면 각각
+  `QUEUE_HORIZON_SEARCH_BUDGET_EXCEEDED`와 `QUEUE_HORIZON_GLOBAL_SEARCH_BUDGET_EXCEEDED`로
+  거부한다. byte-only나 greedy로 조용히 내려가지 않는다.
+- 잔여 위험: 기준 규모에서 exact가 거부하는 입력이 있다. 20 station × 7일에서 접촉의 절반이
+  짝을 이뤄 겹치면 분기 component가 350개(2^350 조합)이므로 exact는 거부한다. PM 결정 `(b)`
+  이후 그 입력에는 답이 있다 — `BOUNDED_APPROXIMATE`로 1.5초 안에 계산되며, 최적이라고
+  주장하지 않는다. 남은 위험은 사용자가 등급을 읽지 않고 두 mode의 숫자를 섞어 비교하는 것이며,
+  `OPTIMIZATION_GRADE_MISMATCH` warning이 그 지점을 표시한다.
+- **PM 결정 (2026-09-03): `(b)`.** 명시적으로 표시된 근사 mode를 추가하되, 결과를 최적이라
+  부르지 않는다. `execution_strategy`를 시나리오의 semantic input으로 두고 `EXACT_GLOBAL`을
+  기본값으로 한다. exact가 상한을 초과해도 approximate로 **자동 전환하지 않는다** — 사용자가
+  명시적으로 선택해야 한다. 계약은 `P0_FUNCTIONAL_SPEC.md` §6.5.1에 기록했다.
+- 결정 이후 구현: `domain/horizon.py`의 `_select_exact_global`과
+  `_select_bounded_approximate`. approximate는 feasible과 deterministic만 보증하고
+  `optimization_status=APPROXIMATE`, `globally_optimal=false`,
+  `algorithm_revision=QUEUE_AWARE_BOUNDED_POLICY_FAMILY_V2`(3개의 다항시간 interval scheduling
+  정책 중 최선; component 분해와 maximal set 열거를 하지 않으므로 exact의 세 상한이 적용되지
+  않는다),
+  `NOT_GLOBALLY_OPTIMAL` warning을 결과에 싣는다. exact는 조합 수와 작업량 두 상한을 갖고
+  각각 `QUEUE_HORIZON_GLOBAL_SEARCH_BUDGET_EXCEEDED`,
+  `QUEUE_HORIZON_EXACT_WORK_BUDGET_EXCEEDED`로 거부한다.
+- 잔여 결정: `optimality_gap`은 현재 항상 `null`이다. objective 전체에 대한 계산 가능한
+  bound를 P0에서 요구할지, 아니면 등급 표기만으로 충분한지는 열려 있다.
+
 ## CONFLICT-PERSIST-01 — P0의 권위 persistence
 
 | 문서 | 주장 |
@@ -145,12 +184,65 @@
 - 필요한 결정: Data Architect가 PostgreSQL 스키마에 결과 문서 table을 추가할지, 아니면
   PostgreSQL tier에서 `/results`를 재계산 기반으로 제공할지 결정.
 
+## CONFLICT-ORB-01 — Orekit의 JVM 요구 vs ADR-0001 이식성 계약
+
+| 문서 | 주장 |
+|---|---|
+| 세션 지시 | 제품 엔진 후보는 Orekit, 독립 oracle은 NASA GMAT |
+| `ADR-0001` "Portability contract" | Python·CPU-first, host 레이아웃 의존 금지 |
+| `README.md` "Install and first run" | "Python 3.12 is required. Nothing else is." |
+
+- 사실 확인(2026-09-03, 패키지 메타데이터): `orekit_jpype` 13.1.7.1은 Apache-2.0(MIT와 호환)
+  이지만 JVM을 요구한다. JVM 조달 경로는 (A) 시스템 JDK 요구 — README 계약 위반이자 engine
+  manifest 재현성 붕괴(호스트 JDK가 통제되지 않음), (B) `jdk4py` 번들 — 플랫폼당 ~30 MiB이며
+  PyPI 분류가 **GPL-2.0**(OpenJDK는 GPLv2+Classpath Exception이나 분류자에는 기록되지 않음),
+  (C) Java를 제품에서 배제. 어느 쪽이든 `orekit-data` 번들도 별도로 vendoring해야 한다.
+- 처리: 임의로 강행하지 않고 `Q-ORB-RUNTIME-01`로 PM에 상신했다.
+- 결정(2026-09-03, PM): **옵션 C**. 제품 엔진은 순수 Python **python-sgp4 2.27(MIT)**,
+  Orekit은 제품에서 제외하고 offline oracle로만 남긴다. 근거와 대안 비교는 `ADR-0004`.
+- 결과: ADR-0001과 README 계약이 그대로 유지된다. wheel clean-install로 검증했다 — 기본
+  설치는 `sgp4`를 끌어오지 않으며(`orbit` extra), golden hash는 저장소 실행과 byte-identical.
+
+## CONFLICT-ORB-02 — 검증 계약 §3(TEME 전제) vs §7.2(EME2000 상태)
+
+| 문서 | 주장 |
+|---|---|
+| `ORBIT_VERIFICATION_CONTRACT.md` §3 | 지구고정계는 TEME에서 항성시 회전 **하나로** 도달한다 |
+| 동 §7.2 | `EVD-ORB-02`의 초기상태는 **EME2000**에 정의된다 |
+
+- 충돌 내용: §3의 프레임 경로는 SGP4/TEME 전용으로 작성되었으나, `VIRTUAL_CIRCULAR`는
+  EME2000 상태를 쓰므로 세차·장동을 포함한 IAU-76/FK5 전체 축약이 필요하다. §3만 따르면
+  26년치 세차(약 534 arcsec)를 누락한다.
+- 조용히 한쪽을 고르지 않고 두 경로를 모두 구현했다: `geometry.teme_to_ecef`(GMST 단독,
+  `EVD-ORB-01`)와 `twobody.eme2000_to_ecef`(전체 축약, `EVD-ORB-02`). 각 fixture가 어느 경로를
+  쓰는지는 `inputs.json`에 명시된다.
+- 이 충돌을 처음 드러낸 것은 독립 oracle이다. 초기 구현이 세차 중간 회전을 X축으로 잘못
+  적용해 지구고정계 위치가 18.29 km 어긋났고 AOS 오차가 22.3 s에 달했다. 축을 Y로 바로잡자
+  0.1 m 이내로 수렴했다. 자기일관성 검사로는 절대 드러나지 않았을 결함이다.
+- 필요한 결정: 없음. §3을 fixture별 프레임 경로로 읽도록 계약에 반영했다.
+
+## CONFLICT-ORB-03 — GMAT EOP 테이블 vs 계약 §2(UT1−UTC·극운동 0 고정)
+
+| 문서 | 주장 |
+|---|---|
+| `ORBIT_VERIFICATION_CONTRACT.md` §2 | 두 도구 모두 UT1−UTC = 0, 극운동 = 0 |
+| GMAT 기본 배포 | IERS EOP 실측 테이블을 읽는다(2026-09-03 행: UT1−UTC = 0.0888341 s) |
+
+- 충돌 내용: 제품 엔진은 구조상 0이지만 GMAT은 실측 EOP를 적용하므로, 그대로 비교하면 두
+  구현이 아니라 서로 다른 날짜의 EOP 테이블을 비교하게 된다.
+- 처리: GMAT의 EOP 파일을 컬럼 폭을 유지한 채 x·y·UT1−UTC·LOD·dPsi·dEps만 0으로 채운 사본으로
+  교체했다. 생성기는 `scripts/orbit/make_zero_eop.py`이며 원본과 교체본의 SHA-256을 모두
+  기록했다. 이는 숨은 조정이 아니라 계약이 요구한 설정이며 재현 절차에 포함된다.
+- 대가: 실제 지구 자전 대비 최대 ±0.9 s의 회전 변위. 따라서 이 fixture는 **두 구현의 일치**를
+  증명할 뿐 절대 궤도 정확도를 보증하지 않으며, 그 한계를 모든 산출물에 명시했다.
+
 ## 미해결 evidence (충돌이 아니라 부재)
 
 | ID | 필요한 산출물 | 소유자 | 영향 |
 |---|---|---|---|
-| `EVD-ORB-01` | frozen 공개 TLE, source URL, retrieval timestamp, license, SHA-256, WGS-84 station literal, mask, propagator/constants/time/frame/event-solver revision, 독립 도구 이름·버전, static AOS/LOS/max-elevation expected table, tolerance와 cross-tool delta | Orbit/Backend + V&V | `PB-GOLDEN-ORB-01`, P0 release |
-| `EVD-ORB-02` | `VIRTUAL_CIRCULAR` propagator/constants 결정(`Q-DATA-03`)과 독립 expected table | Orbit/Backend + PM | 동일 |
+| ~~`EVD-ORB-01`~~ | **확보(2026-09-03)** — frozen TLE·provenance·expected table·delta table 모두 존재. 최악 AOS 오차 0.017 s (ceiling 1.000 s) | Orbit/Backend + V&V | 해소 |
+| ~~`EVD-ORB-02`~~ | **확보(2026-09-03)** — `Q-DATA-03`이 `TWO_BODY_V1`로 결정되고 delta table 생성. 최악 AOS 오차 0.014 s | Orbit/Backend + PM | 해소 |
+| `Q-ORB-LICENSE-01` | CelesTrak 재배포 조건 확인(공개 저장소 게시 전). 미해결이므로 `EVD-ORB-01`(입력·provenance·raw TLE·GMAT oracle 산출물)은 public git에서 제외(`.gitignore`)하고 로컬 전용으로 유지한다. cross-tool 공개 gate는 합성 `EVD-ORB-02`가 담당하며, `EVD-ORB-01` case는 CI에서 명시적 사유와 함께 skip(포함하지 않으면 pass로 계산되지 않음) | PM / legal | `EVD-ORB-01` 공개 |
 | `EVD-PRODUCT-01` | 실제 KMU MANDATORY/severity/value/bundle 정책 승인 | Mission Product Owner | 실제 preset 전환 |
 | `EVD-OBDH-01` | 실제 completion/reclaim/chunk 근거 | OBDH | storage PROXY 제거 |
 | `EVD-RF-01` | `APPLICATION_GOODPUT` measurement point 정의 | Ground/RF | 현재 fixture는 합성 literal `SYNTHETIC_SPACECRAFT_APPLICATION_EGRESS`를 PROXY로 사용 |

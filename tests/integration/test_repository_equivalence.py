@@ -19,6 +19,7 @@ from typing import Any
 import pytest
 
 from semantix_passbudget.adapters.memory_repository import InMemoryRunRepository
+from semantix_passbudget.adapters.orbit.provider import OrbitContactProvider
 from semantix_passbudget.adapters.sqlite.repository import (
     SqlitePersistenceError,
     SqliteRunRepository,
@@ -36,7 +37,11 @@ POSTGRES_CAPABLE_FIXTURES = postgres_capable_fixtures()
 
 def _compute(fixture_id: str) -> StoredRun:
     """One pure calculation, shared by every tier. No repository takes part in it."""
-    service = RunScenarioService(SyntheticContactProvider(), InMemoryRunRepository())
+    service = RunScenarioService(
+        SyntheticContactProvider(),
+        InMemoryRunRepository(),
+        orbit_provider=OrbitContactProvider(),
+    )
     return service.run(load_fixture_source(fixture_id).to_domain())
 
 

@@ -26,7 +26,7 @@
 | AC-P0-09 | endpoint-touch 비충돌, zero-duration tangent 미집계 | PASS | `tests/unit/test_boundaries.py::test_endpoint_touch_is_not_a_conflict_and_zero_duration_is_rejected`, `tests/unit/test_scheduler.py::test_endpoint_touch_is_not_conflict_and_tangent_is_invalid` | tangent는 `INVALID_INTERVAL`로 거부 |
 | AC-P0-10 | DB 삽입·입력 배열 순서 permutation에도 선택 결과와 semantic hash 동일 | PASS | `tests/integration/test_repository_equivalence.py::test_input_order_permutation_reaches_the_same_stored_rows`, `tests/integration/test_queue_storage_overlap.py::test_queue_input_permutation_preserves_semantic_results`, `tests/unit/test_persistence_mapping.py::test_row_order_never_changes_the_persisted_view`, `tests/property/test_horizon_properties.py::test_candidate_input_order_never_changes_the_selection` | 실제 DB 삽입을 포함해 검증된다. SQLite tier가 서버 없이 항상 실행되고, PostgreSQL tier는 URL이 있을 때 같은 테스트에 합류한다 |
 | AC-P0-11 | 완전 동률 station은 lexical station ID로 결정 | PASS | `tests/unit/test_horizon.py::test_full_tie_resolves_by_lexical_station_id` | 입력 순서를 뒤집어도 GS-X 선택 |
-| AC-P0-12 | deadline과 future session: horizon-aware objective가 mandatory on-time 우선 | PASS | `tests/unit/test_horizon.py::test_mandatory_horizon_feasibility_precedes_capacity`, `tests/property/test_horizon_properties.py::test_component_search_matches_exhaustive_subset_search` | `PB-GOLDEN-HORIZON-01` fixture가 `verify-golden`에도 포함됨 |
+| AC-P0-12 | deadline과 future session: horizon-aware objective가 mandatory on-time 우선 | PASS | `tests/unit/test_horizon.py::test_mandatory_horizon_feasibility_precedes_capacity`, `tests/unit/test_horizon.py::test_cross_component_alternatives_are_evaluated_against_the_whole_horizon`, `tests/unit/test_horizon.py::test_cross_component_selection_is_independent_of_input_order`, `tests/property/test_horizon_properties.py::test_global_search_matches_exhaustive_subset_search` | `PB-GOLDEN-HORIZON-01` fixture가 `verify-golden`에도 포함됨. 2026-09-03 다중 component 반례로 `QUEUE_AWARE_LEXICOGRAPHIC_HORIZON_V2`의 오답을 확인하고 V3 전역 탐색으로 교체했다 — 아래 "QUEUE_AWARE 전역 선택 수정" 참조 |
 | AC-P0-13 | atomic payload가 session에 안 들어가면 시작하지 않음 | PASS | `tests/unit/test_queue.py::test_atomic_object_never_starts_when_it_does_not_fit` | `NOT_STARTED_ATOMIC_NOT_COMPLETABLE` 기록 |
 | AC-P0-14 | dependency cycle이면 해당 queue/schedule branch INVALID | PASS | `tests/integration/test_queue_storage_overlap.py::test_dependency_cycle_is_rejected_before_allocations` | allocation 생성 전에 거부 |
 | AC-P0-15 | Storage OFF: queue 결과 계산, storage metric N/A | PASS | `tests/integration/test_queue_storage_overlap.py::test_queue_aware_with_storage_disabled_reports_not_applicable`, `tests/integration/test_vertical_slice.py::test_network_only_leaves_queue_and_storage_not_applicable` | 0이나 무한대로 표현하지 않음 |
@@ -96,7 +96,173 @@ API가 계산한 run이 컨테이너 재시작 뒤에도 조회된다는 것은 
 
 같은 실행에서 `audit` job(`pip-audit`)도 통과했다. DoD #8의 나머지 절반이 채워진 시점이다.
 
+## QUEUE_AWARE 전역 선택 수정 (2026-09-03)
+
+`P0_FUNCTIONAL_SPEC.md` §6.5는 "남은 분석기간의 미래 세션을 포함하는 deterministic rollout"을
+요구한다. `QUEUE_AWARE_LEXICOGRAPHIC_HORIZON_V2`는 충돌 component를 시간순으로 확정하면서
+이후 component를 byte 최대 추정치 하나로만 대표했고, 이는 그 계약과 일치하지 않았다.
+
+**반례** (`tests/unit/test_horizon.py::test_cross_component_alternatives_are_evaluated_against_the_whole_horizon`):
+
+| 후보 | 구간 | 용량 |
+|---|---|---|
+| A | 0–6 s | 11 MB |
+| B | 5–8 s | 5 MB |
+| C | 10–20 s | 10 MB |
+| D | 10–12 s | 5 MB |
+
+A/B가 첫 충돌 component, C/D가 두 번째다. payload는 `M`(MANDATORY, 5 MB, ready 5 s,
+deadline 15 s)과 `P`(PRIORITY, 11 MB atomic, ready 0)이다.
+
+| | V2 선택 | V3 선택 |
+|---|---|---|
+| 세션 | `B + C` | `A + D` |
+| MANDATORY on-time | 예 | 예 |
+| `P` 전송 | 0 MB | 11 MB |
+| scheduled logical bytes | 15 MB | 16 MB |
+
+`P`는 11 MB atomic object라 A에만 정확히 들어간다. 첫 component에서 B를 고르면 이후 어떤
+component도 되찾을 수 없는 utility를 파괴한다. lexicographic objective의 4단계(policy
+utility)와 5단계(scheduled bytes) 모두에서 `A + D`가 엄격히 우수하므로 동률이 아니다.
+
+**V3의 계약**: 단일 maximal set만 갖는 component는 rollout 없이 그대로 포함하고, 실제로
+대안을 갖는 component들의 **모든 조합**을 전체 분석기간 rollout 하나씩으로 채점해
+lexicographic objective를 완전한 선택 위에서 비교한다. 선택 이유 코드는 해당 component를
+다르게 고른 조합 중 최선과 비교해 산출하므로, 전역 1·2위를 가른 단계가 아니라 그 component가
+실제로 이긴 단계를 가리킨다.
+
+**탐색 상한 두 개, 조용한 대체 없음**:
+
+| 코드 | 상한 | 언제 |
+|---|---|---|
+| `QUEUE_HORIZON_SEARCH_BUDGET_EXCEEDED` | `MAXIMAL_SET_BUDGET = 4096` | 한 component의 maximal set 열거가 초과 |
+| `QUEUE_HORIZON_GLOBAL_SEARCH_BUDGET_EXCEEDED` | `GLOBAL_COMBINATION_BUDGET = 4096` | 분기 component 대안 수의 곱이 초과 |
+
+**행위 변화(회귀 아님, 계약 변경)**: 전역 최적해는 일반적으로 NP-hard이므로, 진짜 충돌이
+조밀한 입력은 근사되지 않고 거부된다. 20 station × 7일에서 접촉의 절반이 짝을 이뤄 겹치는
+입력은 분기 component가 350개(2^350 조합)이므로 V2에서 성공하던 것이 V3에서
+`QUEUE_HORIZON_GLOBAL_SEARCH_BUDGET_EXCEEDED`가 된다. 이는 명세의 전역 objective를 지키면서
+휴리스틱으로 조용히 대체하지 않기 위한 의도된 결과다. `SPEC_CONFLICT_REGISTER.md`의
+`CONFLICT-QUEUE-02`에 등록했다.
+
+**revision과 hash 변경**: `overlap_objective_revision`(= engine manifest의 `scheduler_revision`)이
+`QUEUE_AWARE_LEXICOGRAPHIC_HORIZON_V2` → `V3`. 계산 **값**은 모든 golden fixture에서 동일했고
+(`verify-golden`의 literal oracle 전부 통과, `PB-GOLDEN-HORIZON-01` 선택은
+`candidate/Y1, candidate/Z1` 그대로), revision 문자열이 snapshot·result에 포함되므로 hash만
+바뀌었다.
+
+세 번의 revision 변경이 있었고, 세 번 모두 **계산 값은 바뀌지 않았다.** `verify-golden`의
+literal oracle은 매번 전부 통과했고 `PB-GOLDEN-HORIZON-01` 선택은 계속
+`candidate/Y1, candidate/Z1`이다. 바뀐 것은 hash뿐이며, 이유는 revision 문자열과 새 필드가
+canonical snapshot·result에 들어가기 때문이다.
+
+| 단계 | 무엇이 바뀌었나 |
+|---|---|
+| 1 | `overlap_objective_revision`: `..._HORIZON_V2` → `V3` (전역 탐색) |
+| 2 | snapshot에 `execution_strategy`, manifest에 `approximate_objective_revision` 추가 |
+| 3 | `approximate_objective_revision`: `..._POLICY_FAMILY_V1` → `V2` (근사 후보 생성 방식 변경) |
+
+| hash | V2 기준선 | 현재 (3단계 후) |
+|---|---|---|
+| `core.input_snapshot_hash` | `d3bf4db9…abdb79fc` | `07d3ae7e…f3a2fe22` |
+| `core.result_content_hash` | `d1eea515…7714bcc6` | `d8b18f28…43c1c021` |
+| `overlap.result_content_hash` | `fbbe18a8…e626b6fe` | `b82215ed…1814cc56` |
+| `queue.result_content_hash` | `b310c68f…81a5a6eb` | `21900e0d…f3694492` |
+| `horizon.result_content_hash` | `c113d44b…1812e489` | `0c9fd9aa…597cdbf5` |
+| `storage.result_content_hash` | `57b8572d…6c9122e8` | `0801556b…17cd32c2` |
+
+## 실행 전략 — exact와 approximate (PM 결정 `(b)`, 2026-09-03)
+
+`CONFLICT-QUEUE-02`의 PM 결정에 따라 `execution_strategy`를 시나리오의 semantic input으로
+도입했다. 계약은 `P0_FUNCTIONAL_SPEC.md` §6.5.1에 있다.
+
+| | `EXACT_GLOBAL` (기본값) | `BOUNDED_APPROXIMATE` |
+|---|---|---|
+| 보증 | §6.5 objective의 전역 최적해 | feasible · deterministic **뿐** |
+| `optimization_status` | `EXACT` | `APPROXIMATE` |
+| `globally_optimal` | `true` | `false` |
+| `optimality_gap` | `null` | `null` |
+| `algorithm_revision` | `QUEUE_AWARE_LEXICOGRAPHIC_HORIZON_V3` | `QUEUE_AWARE_BOUNDED_POLICY_FAMILY_V2` |
+| warning | — | `NOT_GLOBALLY_OPTIMAL` |
+| 상한 초과 | 구조화된 오류로 거부 | 해당 없음 |
+
+**자동 fallback은 없다.** exact가 상한을 넘으면 실패하며, approximate는 사용자가 명시적으로
+선택해야만 실행된다. 그래야 "빠른 답"과 "옳은 답"이 같은 이름으로 돌아오지 않는다.
+
+**exact 상한 두 가지.**
+
+| 코드 | 상한 | 기준 |
+|---|---|---|
+| `QUEUE_HORIZON_SEARCH_BUDGET_EXCEEDED` | `MAXIMAL_SET_BUDGET = 4096` | 한 component의 maximal set 열거 |
+| `QUEUE_HORIZON_GLOBAL_SEARCH_BUDGET_EXCEEDED` | `GLOBAL_COMBINATION_BUDGET = 4096` | 분기 component 대안 수의 곱 |
+| `QUEUE_HORIZON_EXACT_WORK_BUDGET_EXCEEDED` | `EXACT_WORK_BUDGET = 250,000` | 조합 수 × (세션 + payload + dependency) |
+
+작업량 상한이 따로 필요한 이유는 조합 수만으로 비용을 말할 수 없기 때문이다. 조합 하나가 전체
+분석기간 rollout 하나이므로, 조합 상한 안에 있으면서도 §15.2의 60초 목표를 무력화하는 입력이
+존재한다. 보정 계산: 기준 규모 1 rollout = 10,700 work unit ≈ 1.4초(개발 PC)이므로 250,000은
+약 23 rollout ≈ 33초로, 느린 하드웨어를 감안해도 60초 안이다.
+
+**approximate의 알고리즘 (`QUEUE_AWARE_BOUNDED_POLICY_FAMILY_V2`).** 고정된 3개의 결정적
+**다항시간 interval scheduling** 정책이 각각 전체 후보 집합을 읽어 **완전한 feasible selection**을
+직접 만들고, 그 중 최선을 §6.5 objective로 고른다.
+
+| 정책 | 방식 |
+|---|---|
+| 최대 용량 | `NETWORK_ONLY`의 weighted-interval DP (용량 항에 대해서는 정확) |
+| 최단 종료 우선 | 종료 시각 오름차순 greedy — 사용 세션 수를 최대화 |
+| 최고 밀도 우선 | 단위 시간당 바이트(정확한 `Fraction`) 내림차순 greedy |
+
+**충돌 component 분해도, maximal set 열거도 하지 않는다.** 비용은 겹침 밀도와 무관하게
+3 schedule + 최대 3 rollout이다. exact의 세 상한은 이 경로에 **적용되지 않으며 그 오류가 나올 수도
+없다.**
+
+> **V1의 결함 (2026-09-03 2차 보정에서 수정).** V1은 전략을 분기하기 전에 conflict component를
+> 분해했고, 그 과정이 maximal set을 열거했다. 그래서 하나의 조밀하게 연결된 component가
+> `MAXIMAL_SET_BUDGET`을 넘기면 `BOUNDED_APPROXIMATE`도 exact 전용 오류
+> `QUEUE_HORIZON_SEARCH_BUDGET_EXCEEDED`로 거부됐다 — 근사 mode가 존재하는 이유인 바로 그
+> 입력을 거부한 것이다. 재현: 시간상 분리된 two-way 충돌 12개 + 그 전부와 겹치는 긴 contact 1개
+> = contact 25개, 연결 component 1개, maximal set 4,097개.
+> 현재는 `select_queue_aware_nonoverlap`이 후보 생성 이전에 전략을 분기한다.
+
+**측정 (개발 PC, payload 10,000, 3회)**
+
+| 입력 | `EXACT_GLOBAL` | `BOUNDED_APPROXIMATE` |
+|---|---|---|
+| 20국 × 7일, contact 700, two-way 충돌 350개 (분리된 component) | `QUEUE_HORIZON_GLOBAL_SEARCH_BUDGET_EXCEEDED` (2^350 조합) | `SUCCEEDED`, **1.5 s** |
+| contact 700, **단일 연결 component** (이웃끼리만 겹치는 700-path) | `QUEUE_HORIZON_SEARCH_BUDGET_EXCEEDED` | `SUCCEEDED`, **1.5 s** |
+| contact 25, 단일 연결 component, maximal set 4,097개 | `QUEUE_HORIZON_SEARCH_BUDGET_EXCEEDED` | `SUCCEEDED`, feasible |
+
+근거: `tests/unit/test_execution_strategy.py`(기본값, 등급, 자동 fallback 부재, 세 상한,
+25-contact 반례, exact 후보 생성 미접근, exact 전용 오류 미발생,
+feasibility·결정성, 완전탐색 대비 품질 부등식, hash 변화, 비교 경고, round trip),
+`tests/property/test_horizon_properties.py::test_the_bounded_approximation_is_feasible_deterministic_and_never_better_than_optimal`,
+`tests/unit/test_scalability.py::test_the_dense_fixture_the_exact_search_refuses_is_answered_by_the_bounded_mode`,
+`tests/unit/test_scalability.py::test_a_single_connected_component_at_reference_size_is_answered_by_the_bounded_mode`.
+
+## 기준 규모 성능 측정 (2026-09-03)
+
+명세 §15.2의 기준 규모를 실제 assertion으로 고정했다. 이전 테스트는 payload 200개만 만들었다.
+
+| 항목 | 값 |
+|---|---|
+| 규모 | 위성 1, 지상국 20, 분석기간 7일, contact 700, **payload 10,000** |
+| tier | in-memory (계산만, DB 없음) |
+| 측정값 | 1.37 s / 1.41 s / 1.41 s (3회) |
+| 분기 component 2개(rollout 4회) | 2.16 s / 2.17 s / 2.29 s |
+| assertion 상한 | 60 s — 명세의 목표 수치를 그대로 사용 |
+| 환경 | Windows 11, AMD64, 12 logical CPU, CPython 3.12.13, 개발 PC |
+
+측정값은 이 환경의 참고치이고 CI 성능 보증이 아니다. assertion의 목적은 벤치마크 공표가 아니라
+탐색이 다시 지수적으로 되면 실패시키는 것이다. coverage나 profiler가 붙은 프로세스에서는
+스톱워치를 측정하지 않는 기존 의도를 유지한다(`_wall_clock_is_measurable`).
+
+`GLOBAL_COMBINATION_BUDGET`은 조합 수를 제한하지 조합 하나의 비용을 제한하지 않는다. 각
+조합이 전체 분석기간 rollout 하나이므로 wall clock은 조합 수 × 입력 규모로 늘어난다. 기준
+규모에서는 60초 안에 대략 40조합 정도가 한계이며, 이는 상한 4096보다 훨씬 작다.
+
 ## 별도 release gate
 
-`P0_FUNCTIONAL_SPEC.md` §14 말미의 실제 궤도 gate는 이 25개와 독립이며 여전히
-`P0_RELEASE_BLOCKED_NEEDS_EVIDENCE`다. 근거는 `docs/specs/ORBIT_RELEASE_GATE.md`.
+`P0_FUNCTIONAL_SPEC.md` §14 말미의 실제 궤도 gate는 이 25개와 독립이다. 궤도 증거 gate는
+**PASS**이고 `ORBIT_DERIVED` 제품 통합이 구현됐으므로 release 상태는
+`P0_RELEASE_BLOCKED_ORBIT_INTEGRATION`이며, pushed commit에서 required GitHub Actions가 green이
+되면 해제된다. 근거는 `docs/specs/ORBIT_RELEASE_GATE.md`.
