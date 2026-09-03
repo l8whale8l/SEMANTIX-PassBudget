@@ -1,0 +1,65 @@
+name: postgresql (optional tier)
+
+# PostgreSQL is an optional server tier, not a requirement to build, install, run or test
+# PassBudget (ADR-0003). These checks therefore do not gate every push. Run them:
+#
+#   * manually, from the Actions tab ("Run workflow"), or
+#   * automatically when the PostgreSQL adapter, its DDL or its migrations change on main.
+#
+# Everything here needs a live PostgreSQL 16 service, which is why it cannot run on a developer
+# machine that has none. A skipped run is not evidence: if this workflow has not run, the
+# PostgreSQL tier is unverified for that change.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "db/postgresql/**"
+      - "migrations/**"
+      - "alembic.ini"
+      - "src/semantix_passbudget/adapters/postgres/**"
+      - "src/semantix_passbudget/ports/persisted_rows.py"
+      - "tests/integration/test_postgres_*.py"
+      - "tests/integration/postgres_guard.py"
+      - ".github/workflows/postgresql.yml"
+
+jobs:
+  postgres:
+    name: PostgreSQL 16 migration and persistence
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: passbudget_test
+          POSTGRES_USER: passbudget_test
+          POSTGRES_PASSWORD: test_only_not_a_secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U passbudget_test -d passbudget_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      # A disposable database. tests/integration/postgres_guard.py refuses anything that does not
+      # look disposable, because these tests drop the schema and the Alembic version table.
+      PASSBUDGET_TEST_DATABASE_URL: >-
+        postgresql+psycopg://passbudget_test:test_only_not_a_secret@127.0.0.1:5432/passbudget_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      # Offline migration artifacts first: these need no server and fail fast on a broken script.
+      - run: alembic heads
+      - run: alembic upgrade head --sql
+      - run: alembic downgrade head:base --sql
+      # Live clean upgrade, delta, downgrade, and the persistence round trip.
+      - run: pytest -m postgres
+      # The three tiers must agree on every stored fact once PostgreSQL is available.
+      - run: pytest tests/integration/test_repository_equivalence.py

@@ -1,0 +1,1 @@
+"""Replaceable outer adapters."""

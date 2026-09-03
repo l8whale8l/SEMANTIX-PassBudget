@@ -1,0 +1,63 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+.ssh/
+secrets/
+credentials/
+*.pem
+*.key
+*.p12
+*.pfx
+*.ppk
+id_rsa*
+id_ed25519*
+
+# Private/runtime data
+data/private/
+artifacts/private/
+uploads/
+exports/
+logs/
+backups/
+*.dump
+*.backup
+*.sqlite
+*.sqlite3
+*.db
+# SQLite side files. WAL mode creates these next to the database.
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+*.db-wal
+*.db-shm
+*.sqlite-journal
+*.sqlite3-journal
+*.db-journal
+*.log
+*.pid
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+build/
+dist/
+
+# Local tooling and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+docker-compose.override.yml
+*.local.*
+

@@ -1,0 +1,57 @@
+name: backend
+
+# The default pipeline runs with no database service of any kind. PassBudget's calculation core
+# needs none, and its local persistence tier is a SQLite file. See
+# docs/architecture/ADR-0003-persistence-tiers.md.
+#
+# PostgreSQL is an optional deployment tier, so its checks live in the separate, manually
+# triggered `postgresql` workflow rather than gating every push.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    name: lint, types and the full default suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: mypy src
+      # 254 tests. The 8 PostgreSQL cases skip here; the `postgresql` workflow runs them.
+      - run: pytest
+      - run: passbudget verify-golden
+      - run: passbudget where
+      - run: python scripts/secret_scan.py
+
+  clean-install:
+    name: wheel install with no source tree and no database
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build --wheel
+      # Installed from the wheel only: no checkout on the path, no PostgreSQL, no Docker.
+      - run: python -m pip install dist/*.whl
+      - working-directory: ${{ runner.temp }}
+        run: passbudget verify-golden
+      - working-directory: ${{ runner.temp }}
+        run: passbudget where
+      - working-directory: ${{ runner.temp }}
+        run: passbudget run PB-GOLDEN-QUEUE-01 --output queue.json --persist
+      - working-directory: ${{ runner.temp }}
+        run: >-
+          python -c "import json; d = json.load(open('queue.json'));
+          assert d['result']['metrics']['payload_allocated_bytes'] == 145000000, d"

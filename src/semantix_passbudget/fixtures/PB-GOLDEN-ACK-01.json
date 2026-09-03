@@ -1,0 +1,361 @@
+{
+  "schema_version": "passbudget-input-0.2",
+  "fixture_id": "PB-GOLDEN-ACK-01",
+  "analysis_mode": "QUEUE_AWARE",
+  "analysis_window": {
+    "start": "2027-01-01T00:00:00Z",
+    "end": "2027-01-02T00:00:00Z"
+  },
+  "source_revision_id": "SYN-CONTACT-01-R1",
+  "policy_revision_id": "DEADLINE_SEVERITY_CORE_V1",
+  "safety_notice": "Synthetic regression fixture only. The acknowledgements below are TEST_SYNTHETIC harness events. P0 never observes a real acknowledgement, a real ground reception, or a verified delivery, and this result must not be read as one.",
+  "stations": [
+    {
+      "stable_key": "GS-A",
+      "preference_rank": 0,
+      "capacity": {
+        "provider": "FIXED_RATE",
+        "rate_semantics": "APPLICATION_GOODPUT",
+        "acquisition_guard_us": 60000000,
+        "release_guard_us": 60000000,
+        "rate_segments": [
+          {
+            "ordinal": 0,
+            "start_offset_us": 0,
+            "end_offset_us": 120000000,
+            "numerator_bits": 500000,
+            "denominator_seconds": 1
+          },
+          {
+            "ordinal": 1,
+            "start_offset_us": 120000000,
+            "end_offset_us": 360000000,
+            "numerator_bits": 1500000,
+            "denominator_seconds": 1
+          },
+          {
+            "ordinal": 2,
+            "start_offset_us": 360000000,
+            "end_offset_us": 480000000,
+            "numerator_bits": 500000,
+            "denominator_seconds": 1
+          }
+        ],
+        "evidence_state": "PROXY",
+        "source_revision_id": "SYN-CONTACT-01-R1",
+        "rationale": "Synthetic deterministic rate used only for queue regression.",
+        "measurement_point": "SYNTHETIC_SPACECRAFT_APPLICATION_EGRESS",
+        "rate_scope": "ACTIVE_DATA_WINDOW",
+        "accounted_effects": [
+          "CODING",
+          "PROTOCOL_OVERHEAD",
+          "RESIDUAL_LOSS",
+          "RETRANSMISSION"
+        ]
+      }
+    },
+    {
+      "stable_key": "GS-B",
+      "preference_rank": 1,
+      "capacity": {
+        "provider": "FIXED_RATE",
+        "rate_semantics": "APPLICATION_GOODPUT",
+        "acquisition_guard_us": 40000000,
+        "release_guard_us": 40000000,
+        "rate_segments": [
+          {
+            "ordinal": 0,
+            "start_offset_us": 0,
+            "end_offset_us": 400000000,
+            "numerator_bits": 800000,
+            "denominator_seconds": 1
+          }
+        ],
+        "evidence_state": "PROXY",
+        "source_revision_id": "SYN-CONTACT-01-R1",
+        "rationale": "Synthetic deterministic rate used only for queue regression.",
+        "measurement_point": "SYNTHETIC_SPACECRAFT_APPLICATION_EGRESS",
+        "rate_scope": "ACTIVE_DATA_WINDOW",
+        "accounted_effects": [
+          "CODING",
+          "PROTOCOL_OVERHEAD",
+          "RESIDUAL_LOSS",
+          "RETRANSMISSION"
+        ]
+      }
+    },
+    {
+      "stable_key": "GS-C",
+      "preference_rank": 2,
+      "capacity": {
+        "provider": "FIXED_RATE",
+        "rate_semantics": "APPLICATION_GOODPUT",
+        "acquisition_guard_us": 20000000,
+        "release_guard_us": 20000000,
+        "rate_segments": [
+          {
+            "ordinal": 0,
+            "start_offset_us": 0,
+            "end_offset_us": 320000000,
+            "numerator_bits": 500000,
+            "denominator_seconds": 1
+          }
+        ],
+        "evidence_state": "PROXY",
+        "source_revision_id": "SYN-CONTACT-01-R1",
+        "rationale": "Synthetic deterministic rate used only for queue regression.",
+        "measurement_point": "SYNTHETIC_SPACECRAFT_APPLICATION_EGRESS",
+        "rate_scope": "ACTIVE_DATA_WINDOW",
+        "accounted_effects": [
+          "CODING",
+          "PROTOCOL_OVERHEAD",
+          "RESIDUAL_LOSS",
+          "RETRANSMISSION"
+        ]
+      }
+    }
+  ],
+  "contacts": [
+    {
+      "stable_key": "A1",
+      "station_key": "GS-A",
+      "true_interval": {
+        "start": "2027-01-01T00:10:00Z",
+        "end": "2027-01-01T00:20:00Z"
+      }
+    },
+    {
+      "stable_key": "C1",
+      "station_key": "GS-C",
+      "true_interval": {
+        "start": "2027-01-01T01:40:00Z",
+        "end": "2027-01-01T01:46:00Z"
+      }
+    },
+    {
+      "stable_key": "B1",
+      "station_key": "GS-B",
+      "true_interval": {
+        "start": "2027-01-01T03:10:00Z",
+        "end": "2027-01-01T03:18:00Z"
+      }
+    },
+    {
+      "stable_key": "C2",
+      "station_key": "GS-C",
+      "true_interval": {
+        "start": "2027-01-01T04:40:00Z",
+        "end": "2027-01-01T04:46:00Z"
+      }
+    },
+    {
+      "stable_key": "A2",
+      "station_key": "GS-A",
+      "true_interval": {
+        "start": "2027-01-01T06:10:00Z",
+        "end": "2027-01-01T06:20:00Z"
+      }
+    },
+    {
+      "stable_key": "A3",
+      "station_key": "GS-A",
+      "true_interval": {
+        "start": "2027-01-01T12:10:00Z",
+        "end": "2027-01-01T12:20:00Z"
+      }
+    },
+    {
+      "stable_key": "A4",
+      "station_key": "GS-A",
+      "true_interval": {
+        "start": "2027-01-01T18:10:00Z",
+        "end": "2027-01-01T18:20:00Z"
+      }
+    },
+    {
+      "stable_key": "B2",
+      "station_key": "GS-B",
+      "true_interval": {
+        "start": "2027-01-01T09:10:00Z",
+        "end": "2027-01-01T09:18:00Z"
+      }
+    },
+    {
+      "stable_key": "B3",
+      "station_key": "GS-B",
+      "true_interval": {
+        "start": "2027-01-01T15:10:00Z",
+        "end": "2027-01-01T15:18:00Z"
+      }
+    },
+    {
+      "stable_key": "B4",
+      "station_key": "GS-B",
+      "true_interval": {
+        "start": "2027-01-01T21:10:00Z",
+        "end": "2027-01-01T21:18:00Z"
+      }
+    },
+    {
+      "stable_key": "C3",
+      "station_key": "GS-C",
+      "true_interval": {
+        "start": "2027-01-01T07:40:00Z",
+        "end": "2027-01-01T07:46:00Z"
+      }
+    },
+    {
+      "stable_key": "C4",
+      "station_key": "GS-C",
+      "true_interval": {
+        "start": "2027-01-01T10:40:00Z",
+        "end": "2027-01-01T10:46:00Z"
+      }
+    },
+    {
+      "stable_key": "C5",
+      "station_key": "GS-C",
+      "true_interval": {
+        "start": "2027-01-01T13:40:00Z",
+        "end": "2027-01-01T13:46:00Z"
+      }
+    },
+    {
+      "stable_key": "C6",
+      "station_key": "GS-C",
+      "true_interval": {
+        "start": "2027-01-01T16:40:00Z",
+        "end": "2027-01-01T16:46:00Z"
+      }
+    },
+    {
+      "stable_key": "C7",
+      "station_key": "GS-C",
+      "true_interval": {
+        "start": "2027-01-01T19:40:00Z",
+        "end": "2027-01-01T19:46:00Z"
+      }
+    },
+    {
+      "stable_key": "C8",
+      "station_key": "GS-C",
+      "true_interval": {
+        "start": "2027-01-01T22:40:00Z",
+        "end": "2027-01-01T22:46:00Z"
+      }
+    }
+  ],
+  "payloads": [
+    {
+      "stable_key": "P-ALERT",
+      "logical_size_bytes": 50000,
+      "storage_size_bytes": 50000,
+      "ready_at": "2027-01-01T00:05:00Z",
+      "service_class": "PRIORITY",
+      "deadline_at": "2027-01-01T00:30:00Z",
+      "deadline_severity": 0,
+      "mission_priority": 100,
+      "queue_sequence": 1,
+      "segmentation": "ATOMIC_OBJECT",
+      "resume_supported": false,
+      "display_name": "ALERT.json",
+      "media_type": "application/json",
+      "producer_kind": "MODEL_DERIVED",
+      "deadline_target": "INSTANCE_COMPLETE",
+      "post_deadline_action": "CONTINUE_AND_REPORT",
+      "bundle_key": "B-OBSERVATION-01",
+      "bundle_member_role": "REQUIRED_ACTIONABLE"
+    },
+    {
+      "stable_key": "P-THUMB",
+      "logical_size_bytes": 950000,
+      "storage_size_bytes": 950000,
+      "ready_at": "2027-01-01T00:05:00Z",
+      "service_class": "PRIORITY",
+      "deadline_at": "2027-01-01T06:00:00Z",
+      "deadline_severity": 0,
+      "mission_priority": 90,
+      "queue_sequence": 2,
+      "segmentation": "ATOMIC_OBJECT",
+      "resume_supported": false,
+      "display_name": "THUMBNAIL.jpg",
+      "media_type": "image/jpeg",
+      "producer_kind": "MODEL_DERIVED",
+      "deadline_target": "INSTANCE_COMPLETE",
+      "post_deadline_action": "CONTINUE_AND_REPORT",
+      "bundle_key": "B-OBSERVATION-01",
+      "bundle_member_role": "REQUIRED_ACTIONABLE"
+    },
+    {
+      "stable_key": "P-MASK",
+      "logical_size_bytes": 4000000,
+      "storage_size_bytes": 4000000,
+      "ready_at": "2027-01-01T00:05:00Z",
+      "service_class": "PRIORITY",
+      "deadline_at": "2027-01-01T06:00:00Z",
+      "deadline_severity": 0,
+      "mission_priority": 85,
+      "queue_sequence": 3,
+      "segmentation": "ATOMIC_OBJECT",
+      "resume_supported": false,
+      "display_name": "MASK.bin",
+      "media_type": "application/octet-stream",
+      "producer_kind": "MODEL_DERIVED",
+      "deadline_target": "INSTANCE_COMPLETE",
+      "post_deadline_action": "CONTINUE_AND_REPORT",
+      "bundle_key": "B-OBSERVATION-01",
+      "bundle_member_role": "OPTIONAL"
+    },
+    {
+      "stable_key": "P-ORIGINAL",
+      "logical_size_bytes": 140000000,
+      "storage_size_bytes": 140000000,
+      "ready_at": "2027-01-01T00:05:00Z",
+      "service_class": "PRIORITY",
+      "deadline_at": "2027-01-02T00:00:00Z",
+      "deadline_severity": 0,
+      "mission_priority": 30,
+      "queue_sequence": 4,
+      "segmentation": "FIXED_CHUNK",
+      "chunk_size_bytes": 1000000,
+      "resume_supported": true,
+      "display_name": "ORIGINAL.jp2",
+      "media_type": "image/jp2",
+      "producer_kind": "MODEL_DERIVED",
+      "deadline_target": "INSTANCE_COMPLETE",
+      "post_deadline_action": "CONTINUE_AND_REPORT",
+      "bundle_key": "B-OBSERVATION-01",
+      "bundle_member_role": "OPTIONAL"
+    }
+  ],
+  "contact_source": "SYNTHETIC_INJECTED",
+  "decision_question": "With object reclaim and a synthetic test acknowledgement per completed object, how does recorder occupancy fall and what does an incomplete object hold? (AC-25B)",
+  "storage": {
+    "mode": "ENABLED",
+    "physical_capacity_bytes": 200000000,
+    "reserve_bytes": 0,
+    "initial_occupancy_bytes": 0,
+    "reserve_enforcement": "HARD",
+    "admission_policy": "REJECT_NEW",
+    "release_trigger": "ACKED",
+    "delivery_assumption": "NONE",
+    "reclaim_granularity": "OBJECT"
+  },
+  "synthetic_delivery_events": [
+    {
+      "payload_key": "P-ALERT",
+      "acknowledged_at": "2027-01-01T00:11:01Z",
+      "event_origin": "TEST_SYNTHETIC"
+    },
+    {
+      "payload_key": "P-THUMB",
+      "acknowledged_at": "2027-01-01T00:11:17Z",
+      "event_origin": "TEST_SYNTHETIC"
+    },
+    {
+      "payload_key": "P-MASK",
+      "acknowledged_at": "2027-01-01T00:12:21Z",
+      "event_origin": "TEST_SYNTHETIC"
+    }
+  ]
+}

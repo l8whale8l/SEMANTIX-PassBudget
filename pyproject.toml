@@ -1,0 +1,62 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "semantix-passbudget"
+version = "0.1.0"
+description = "Deterministic mission data budget calculator for synthetic P0 scenarios"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { file = "LICENSE" }
+dependencies = [
+  "alembic>=1.16,<2",
+  "fastapi>=0.116,<1",
+  "pydantic>=2.11,<3",
+  "pydantic-settings>=2.10,<3",
+  "psycopg[binary]>=3.2,<4",
+  "sqlalchemy>=2.0,<3",
+  "uvicorn[standard]>=0.35,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx>=0.28,<1",
+  "hypothesis>=6.138,<7",
+  "mypy>=1.17,<2",
+  "pytest>=8.4,<9",
+  "pytest-cov>=6.2,<7",
+  "ruff>=0.12,<1",
+]
+
+[project.scripts]
+passbudget = "semantix_passbudget.interfaces.cli.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/semantix_passbudget"]
+
+# The SQLite DDL has one authoritative home in db/sqlite/. Ship it inside the wheel so that
+# `pip install semantix-passbudget` is enough to create a local database, with no source
+# checkout, no Docker and no PostgreSQL.
+[tool.hatch.build.targets.wheel.force-include]
+"db/sqlite" = "semantix_passbudget/_ddl/sqlite"
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+testpaths = ["tests"]
+markers = ["postgres: requires a PostgreSQL 16+ DATABASE_URL"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["semantix_passbudget"]
+mypy_path = "src"
+plugins = ["pydantic.mypy"]
+
