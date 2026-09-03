@@ -29,7 +29,11 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from semantix_passbudget.adapters.postgres import schema as tables
 from semantix_passbudget.application.decompose import decompose_snapshot
-from semantix_passbudget.domain.canonical import CANONICALIZATION_REVISION, canonical_bytes
+from semantix_passbudget.domain.canonical import (
+    CANONICALIZATION_REVISION,
+    canonical_bytes,
+    canonical_object,
+)
 from semantix_passbudget.domain.enums import (
     AnalysisMode,
     ContactSource,
@@ -449,7 +453,8 @@ class PostgresRunRepository:
                 schema_version=run.snapshot.schema_version[:32] if run.snapshot else "unknown",
                 json_schema_id=JSON_SCHEMA_ID,
                 canonicalization_revision=CANONICALIZATION_REVISION,
-                canonical_payload=payload,
+                # jsonb cannot take a Fraction or a UtcInstant; the canonical form can.
+                canonical_payload=canonical_object(payload),
                 canonical_bytes=canonical_bytes(payload),
                 content_sha256=digest,
                 validation_status="VALID",

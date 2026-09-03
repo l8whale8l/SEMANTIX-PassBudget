@@ -78,10 +78,21 @@ def _normalize(value: Any, path: tuple[str, ...] = ()) -> Any:
     raise TypeError(f"unsupported canonical value type: {type(value).__name__}")
 
 
+def canonical_object(value: object) -> Any:
+    """The normalized structure that `canonical_bytes` serializes.
+
+    Everything here is JSON-safe: exact rationals become `{"n": ..., "d": ...}`, integers become
+    decimal strings and timestamps become the canonical `...Z` form. A persistence adapter that
+    stores an inspection copy of a snapshot must use this, never the raw object graph — a
+    `Fraction` or a `UtcInstant` cannot cross a JSON boundary, and coercing one with `str()`
+    would silently store a Python repr instead of the canonical value.
+    """
+    return _normalize(value)
+
+
 def canonical_bytes(value: object) -> bytes:
-    normalized = _normalize(value)
     return json.dumps(
-        normalized,
+        canonical_object(value),
         ensure_ascii=False,
         allow_nan=False,
         separators=(",", ":"),

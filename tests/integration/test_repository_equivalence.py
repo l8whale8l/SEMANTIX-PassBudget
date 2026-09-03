@@ -257,3 +257,40 @@ def test_exact_byte_values_are_stored_as_text_not_as_integers(sqlite_path: Path)
     assert rows and all(row["kind"] == "text" for row in rows)
     assert occupancy and all(row["kind"] == "text" for row in occupancy)
     assert "60000000" in {row["capacity_bytes"] for row in rows}
+
+
+def test_the_stored_snapshot_payload_is_canonical_and_json_safe(sqlite_path: Path) -> None:
+    """The inspection copy must be the canonical structure, not a Python repr.
+
+    `snapshot_semantics` returns real `Fraction` and `UtcInstant` objects. Neither can cross a
+    JSON boundary: PostgreSQL's `jsonb` binding raises, and coercing with `str()` would store
+    `'3/4'` and `'UtcInstant(microseconds=...)'` instead of the canonical form. Both adapters
+    therefore store `canonical_object(payload)`, which is byte-identical to what the hash covers.
+    """
+    import json
+
+    from semantix_passbudget.domain.canonical import canonical_bytes, canonical_object
+
+    run = _compute("PB-GOLDEN-QUEUE-01")
+    payload = run.input_snapshot_payload
+    with pytest.raises(TypeError):
+        json.dumps(payload)  # the raw graph is deliberately not JSON-safe
+    canonical = canonical_object(payload)
+    json.dumps(canonical)  # the canonical form always is
+
+    repository = SqliteRunRepository(sqlite_path)
+    repository.add(run)
+    with repository._connection() as connection:
+        row = connection.execute(
+            "SELECT canonical_payload, canonical_bytes, content_sha256 FROM input_snapshot"
+        ).fetchone()
+    stored = json.loads(row["canonical_payload"])
+    assert stored == canonical
+    assert bytes(row["canonical_bytes"]) == canonical_bytes(payload)
+    assert row["content_sha256"] == run.input_snapshot_hash
+    # Spot-check the two types that used to be corrupted.
+    assert stored["stations"][0]["capacity"]["rate_segments"][0]["rate"] == {
+        "d": "1",
+        "n": "500000",
+    }
+    assert stored["payloads"][0]["ready_at"] == "2027-01-01T00:05:00.000000Z"

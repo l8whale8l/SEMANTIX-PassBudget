@@ -88,3 +88,17 @@ def test_unit_normalisation_is_not_silently_applied() -> None:
     assert canonical_bytes({"value": 1, "unit": "MB"}) != canonical_bytes(
         {"value": 1_000_000, "unit": "BYTE"}
     )
+
+
+def test_canonical_object_is_json_safe_and_matches_canonical_bytes() -> None:
+    """Adapters store `canonical_object`; it must be exactly what the hash covers."""
+    import json
+
+    from semantix_passbudget.domain.canonical import canonical_object
+
+    value = _vector()
+    obj = canonical_object(value)
+    encoded = json.dumps(obj, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+    assert encoded.encode("utf-8") == canonical_bytes(value)
+    # Round-tripping through JSON changes nothing, which is what a jsonb column needs.
+    assert json.loads(encoded) == obj

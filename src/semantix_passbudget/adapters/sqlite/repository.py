@@ -26,7 +26,11 @@ from uuid import uuid4
 
 from semantix_passbudget.adapters.sqlite.schema import connect, migrate
 from semantix_passbudget.application.decompose import decompose_snapshot
-from semantix_passbudget.domain.canonical import CANONICALIZATION_REVISION, canonical_bytes
+from semantix_passbudget.domain.canonical import (
+    CANONICALIZATION_REVISION,
+    canonical_bytes,
+    canonical_object,
+)
 from semantix_passbudget.domain.enums import ContactSource, StorageMode
 from semantix_passbudget.domain.models import ScenarioSnapshot
 from semantix_passbudget.ports.persisted_rows import PersistedRows, result_rows
@@ -432,7 +436,9 @@ class SqliteRunRepository:
                 run.snapshot.schema_version,
                 JSON_SCHEMA_ID,
                 CANONICALIZATION_REVISION,
-                json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str),
+                # The canonical structure, not the raw object graph: `default=str` would store
+                # a Python repr for a Fraction or a UtcInstant.
+                json.dumps(canonical_object(payload), ensure_ascii=False),
                 canonical_bytes(payload),
                 run.input_snapshot_hash,
                 self._now_us(),
