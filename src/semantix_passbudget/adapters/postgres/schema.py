@@ -23,15 +23,37 @@ from sqlalchemy import (
     Table,
     Text,
 )
+from sqlalchemy import Enum as _SqlAlchemyEnum
 from sqlalchemy.dialects.postgresql import BIGINT, ENUM, JSONB, TIMESTAMP, UUID
 
 SCHEMA = "passbudget"
 metadata = MetaData(schema=SCHEMA)
 
 
+class _ExistingEnum(ENUM):
+    """A PostgreSQL enum type that already exists, referenced by name and carried as a string.
+
+    The label set lives in `db/postgresql/` and in the Alembic revisions, and nowhere else.
+    Repeating it here would create a second source of schema truth that could drift silently,
+    and PostgreSQL already rejects an unknown label on write, which is the check that matters.
+
+    SQLAlchemy's `Enum` is asymmetric when it holds no labels. On the way in,
+    `_db_value_for_elem` passes an unrecognised string straight through; on the way out,
+    `_object_value_for_elem` raises `LookupError: 'SUCCEEDED' is not among the defined enum
+    values ... Possible values: None`. So a labelless reference stores rows happily and then
+    fails every read. This type keeps everything else the base class provides -- above all the
+    psycopg bind cast, which is what lets `accounted_effect[]` receive a list of strings -- and
+    returns the stored label as the plain string the domain uses.
+    """
+
+    def result_processor(self, dialect, coltype):  # type: ignore[no-untyped-def]
+        # Skip `Enum`'s label lookup; keep whatever `String` does for this dialect.
+        return super(_SqlAlchemyEnum, self).result_processor(dialect, coltype)
+
+
 def _enum(name: str) -> ENUM:
     """Reference an existing PostgreSQL enum type without ever creating or altering it."""
-    return ENUM(name=name, schema=SCHEMA, create_type=False)
+    return _ExistingEnum(name=name, schema=SCHEMA, create_type=False)
 
 
 _ts = TIMESTAMP(timezone=True)

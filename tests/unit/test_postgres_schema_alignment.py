@@ -12,6 +12,7 @@ import re
 from pathlib import Path
 
 import pytest
+from sqlalchemy import Enum as SqlAlchemyEnum
 from sqlalchemy import insert, select
 from sqlalchemy.dialects import postgresql
 
@@ -27,6 +28,7 @@ CREATE_TABLE = re.compile(r"CREATE TABLE (\w+) \((.*?)\n\);", re.DOTALL)
 ADD_COLUMN = re.compile(r"ALTER TABLE (\w+)\s+ADD COLUMN (\w+)", re.MULTILINE)
 ADD_COLUMN_EXTRA = re.compile(r"^\s+ADD COLUMN (\w+)", re.MULTILINE)
 CREATE_TYPE = re.compile(r"CREATE TYPE (\w+) AS ENUM")
+CREATE_TYPE_BODY = re.compile(r"CREATE TYPE (\w+) AS ENUM\s*\((.*?)\);", re.DOTALL)
 
 
 def _declared_columns() -> dict[str, set[str]]:
@@ -78,6 +80,46 @@ def test_every_referenced_enum_type_is_declared() -> None:
     }
     unknown = referenced - DECLARED_TYPES
     assert not unknown, f"undeclared enum types: {sorted(unknown)}"
+
+
+def _declared_enum_labels() -> dict[str, tuple[str, ...]]:
+    labels: dict[str, tuple[str, ...]] = {}
+    for name, body in CREATE_TYPE_BODY.findall(BASE_DDL) + CREATE_TYPE_BODY.findall(DELTA_DDL):
+        labels[name] = tuple(re.findall(r"'([^']+)'", body))
+    return labels
+
+
+def _enum_types() -> list[SqlAlchemyEnum]:
+    found: list[SqlAlchemyEnum] = []
+    for table in tables.metadata.tables.values():
+        for column in table.columns:
+            for candidate in (column.type, getattr(column.type, "item_type", None)):
+                if isinstance(candidate, SqlAlchemyEnum):
+                    found.append(candidate)
+    return found
+
+
+def test_every_enum_column_reads_its_stored_label_back_unchanged() -> None:
+    """A labelless enum reference stores rows happily and then fails every single read.
+
+    `sqlalchemy.Enum` is asymmetric when it carries no labels: `_db_value_for_elem` lets an
+    unrecognised string through on the way in, while `_object_value_for_elem` raises
+    `LookupError: ... Possible values: None` on the way out. A write-only check therefore
+    cannot catch it, and neither can any suite that runs without PostgreSQL -- which is how it
+    reached CI. This asserts the round trip in pure Python, for every enum the adapter names.
+    """
+    dialect = postgresql.dialect()
+    declared = _declared_enum_labels()
+    enum_types = _enum_types()
+    assert enum_types, "the adapter maps no enum columns; this test would prove nothing"
+    for enum_type in enum_types:
+        assert enum_type.name in declared, f"{enum_type.name} is not declared in the DDL"
+        processor = enum_type.result_processor(dialect, None)
+        for label in declared[enum_type.name]:
+            read_back = label if processor is None else processor(label)
+            assert read_back == label, (
+                f"{enum_type.name} does not survive a read: {label!r} came back as {read_back!r}"
+            )
 
 
 def test_statements_compile_against_the_postgresql_dialect() -> None:
