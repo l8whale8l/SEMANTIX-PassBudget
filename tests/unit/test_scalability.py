@@ -8,6 +8,7 @@ non-conflicting opportunities again.
 
 from __future__ import annotations
 
+import sys
 import time
 from dataclasses import replace
 
@@ -40,6 +41,22 @@ SECOND = 1_000_000
 
 #: Generous upper bound: the reference target is 60 s for a far larger payload manifest.
 WALL_CLOCK_BUDGET_S = 30.0
+
+
+def _wall_clock_is_measurable() -> bool:
+    """Whether a stopwatch reading means anything in this process.
+
+    Coverage and profilers inflate wall clock several-fold, so under them the budget below
+    reports the tracer rather than the algorithm. The exactness assertions still run either
+    way; only the stopwatch is dropped, and the plain `pytest` that CI runs keeps the guard.
+    """
+    if sys.gettrace() is not None or sys.getprofile() is not None:
+        return False
+    try:
+        import coverage
+    except ModuleNotFoundError:
+        return True
+    return coverage.Coverage.current() is None
 
 
 def _profile(capacity: int) -> CapacityProfile:
@@ -123,7 +140,8 @@ def test_reference_analysis_size_completes_within_a_bounded_time() -> None:
     metrics = run.result["metrics"]
     assert metrics["geometric_contact_count"] == STATIONS * DAYS * PASSES_PER_DAY
     assert metrics["scheduled_unique_capacity_bytes"] <= metrics["candidate_capacity_sum_bytes"]
-    assert elapsed < WALL_CLOCK_BUDGET_S, f"reference analysis took {elapsed:.1f}s"
+    if _wall_clock_is_measurable():
+        assert elapsed < WALL_CLOCK_BUDGET_S, f"reference analysis took {elapsed:.1f}s"
 
 
 def test_pairwise_overlap_at_reference_size_still_searches_exactly() -> None:
@@ -149,4 +167,5 @@ def test_pairwise_overlap_at_reference_size_still_searches_exactly() -> None:
     elapsed = time.perf_counter() - started
     assert run.status == "SUCCEEDED"
     assert run.result["metrics"]["suppressed_capacity_bytes"] > 0
-    assert elapsed < WALL_CLOCK_BUDGET_S, f"overlapping reference analysis took {elapsed:.1f}s"
+    if _wall_clock_is_measurable():
+        assert elapsed < WALL_CLOCK_BUDGET_S, f"overlapping reference analysis took {elapsed:.1f}s"

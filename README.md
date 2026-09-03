@@ -241,9 +241,17 @@ a pass.
 ## Continuous integration
 
 `.github/workflows/backend.yml` runs on every push and pull request and needs **no database
-service at all**: lint, formatting, types, the full 254-test suite, `verify-golden`, `where`, the
-secret scan, and a separate job that builds a wheel, installs it into a machine with no source
-tree, and runs the golden verification from that install.
+service at all**. It has four jobs:
+
+| Job | What it proves |
+|---|---|
+| `verify` | lint, formatting, types, the full 257-test suite, `verify-golden`, `where`, the secret scan |
+| `clean-install` | a wheel installs and runs the golden verification on a machine with no source tree |
+| `docker` | the image builds, its CLI works, and a run computed through the API is still readable after the container restarts |
+| `audit` | no known advisory affects the dependency set |
+
+`audit` is deliberately its own job: a newly published advisory says something about the
+dependency set, not about the code, and the two signals should stay separable in the Actions tab.
 
 `.github/workflows/postgresql.yml` holds everything that needs a live PostgreSQL 16: the offline
 migration SQL, `pytest -m postgres`, and the three-tier equivalence suite. It is triggered
@@ -295,6 +303,7 @@ data into the image.
 
 - [P0 functional specification](docs/specs/P0_FUNCTIONAL_SPEC.md)
 - [P0 acceptance matrix](docs/specs/P0_ACCEPTANCE_MATRIX.md)
+- [P0 Definition of Done status](docs/specs/P0_DEFINITION_OF_DONE.md)
 - [Specification conflict register](docs/specs/SPEC_CONFLICT_REGISTER.md)
 - [Orbit release gate audit](docs/specs/ORBIT_RELEASE_GATE.md)
 - [Database schema](docs/database/database_schema_v0.1.md)

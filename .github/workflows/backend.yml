@@ -55,3 +55,67 @@ jobs:
         run: >-
           python -c "import json; d = json.load(open('queue.json'));
           assert d['result']['metrics']['payload_allocated_bytes'] == 145000000, d"
+
+  docker:
+    name: image builds, serves and survives a restart
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t passbudget:ci .
+      # The CLI must work inside the image with no database and no source tree.
+      - run: docker run --rm passbudget:ci passbudget verify-golden
+      - run: docker run --rm passbudget:ci passbudget where
+      - name: serve a run and read it back after a restart
+        run: |
+          wait_for_health() {
+            for _ in $(seq 1 60); do
+              if curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1; then return 0; fi
+              sleep 1
+            done
+            echo "the API never became healthy"
+            docker logs passbudget_ci
+            return 1
+          }
+
+          docker volume create passbudget_ci_data
+          docker run -d --name passbudget_ci -p 8000:8000 \
+            -v passbudget_ci_data:/app/data passbudget:ci
+          wait_for_health
+
+          tier=$(curl -fsS http://127.0.0.1:8000/health | jq -r .persistence)
+          test "$tier" = sqlite || { echo "expected the sqlite tier, got '$tier'"; exit 1; }
+
+          run_id=$(curl -fsS -X POST http://127.0.0.1:8000/api/v1/runs \
+            -H 'content-type: application/json' \
+            -d '{"fixture": "PB-GOLDEN-QUEUE-01"}' | jq -r .run_id)
+          test -n "$run_id" && test "$run_id" != null
+
+          # The run must still be readable once the process that computed it is gone. That is
+          # what distinguishes the packaged SQLite tier from an in-memory repository that only
+          # looks persistent for as long as the container lives.
+          docker restart passbudget_ci
+          wait_for_health
+
+          allocated=$(curl -fsS "http://127.0.0.1:8000/api/v1/runs/$run_id/results" \
+            | jq -r '.result.metrics.payload_allocated_bytes')
+          test "$allocated" = 145000000 \
+            || { echo "expected 145000000 allocated bytes, got '$allocated'"; exit 1; }
+      - if: always()
+        run: |
+          docker rm -f passbudget_ci || true
+          docker volume rm passbudget_ci_data || true
+
+  audit:
+    name: dependency advisories
+    # A separate job on purpose: a newly published advisory says something about the
+    # dependency set, not about the code, and the two signals should stay distinguishable.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: pip-audit --progress-spinner off

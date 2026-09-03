@@ -24,8 +24,10 @@ dev = [
   "httpx>=0.28,<1",
   "hypothesis>=6.138,<7",
   "mypy>=1.17,<2",
-  "pytest>=8.4,<9",
-  "pytest-cov>=6.2,<7",
+  "pip-audit>=2.9,<3",
+  # 9.0.3 is the fix for PYSEC-2026-1845; the `audit` CI job fails on anything older.
+  "pytest>=9.0.3,<10",
+  "pytest-cov>=6.2,<8",
   "ruff>=0.12,<1",
 ]
 

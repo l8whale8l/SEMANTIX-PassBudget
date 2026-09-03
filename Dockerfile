@@ -2,6 +2,10 @@ FROM python:3.12-slim AS builder
 WORKDIR /build
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
+# `[tool.hatch.build.targets.wheel.force-include]` ships db/sqlite inside the wheel, so the
+# build context needs it too. Without this the wheel build fails outright with
+# `FileNotFoundError: Forced include not found: /build/db/sqlite`.
+COPY db ./db
 RUN python -m pip install --no-cache-dir --prefix=/install .
 
 FROM python:3.12-slim AS runtime

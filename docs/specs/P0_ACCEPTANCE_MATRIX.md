@@ -55,9 +55,40 @@ AC-P0-10과 AC-P0-20은 2026-09-03의 persistence tier 결정(ADR-0003)으로 `P
 Docker도 없이 그 검증을 항상 수행한다. PostgreSQL tier의 동일 검증은
 `tests/integration/test_postgres_persistence.py`와
 `tests/integration/test_repository_equivalence.py`에 남아 있으며
-`PASSBUDGET_TEST_DATABASE_URL`이 주어질 때 실행된다. 이 감사 환경에는 PostgreSQL이 없어
-그 절반은 실행되지 않았고 skip을 통과로 표기하지 않았다 —
-다만 두 수용 기준 자체는 더 이상 PostgreSQL에 의존하지 않는다.
+`PASSBUDGET_TEST_DATABASE_URL`이 주어질 때 실행된다.
+
+## PostgreSQL tier 검증 (2026-09-03)
+
+이 감사 환경에는 여전히 PostgreSQL이 없다. 대신 GitHub Actions의 `postgresql` workflow가
+커밋 `b4056c1`에서 통과했다: 깨끗한 upgrade/delta/downgrade, `pytest -m postgres`, 3-tier
+동등성 suite. 이제 두 수용 기준의 PostgreSQL 절반도 skip이 아니라 실행된 근거를 갖는다.
+
+그 전까지 세 번의 실행이 실패했고, 세 결함 모두 PostgreSQL 없이 도는 기본 suite로는
+원리적으로 잡히지 않는 것이었다. 기록해 둔다:
+
+| 결함 | 왜 기본 suite로 잡히지 않았나 | 수정 |
+|---|---|---|
+| `jsonb`에 `Fraction`·`UtcInstant` 바인딩 | SQLite adapter가 `default=str`로 삼켜 Python repr을 저장하고 있었다 | `canonical_object()` (`d64836e`) |
+| `PB-GOLDEN-ACK-01`을 PostgreSQL에 저장 시도 | `CONFLICT-STORE-01`의 제약을 equivalence suite에만 반영하고 persistence 테스트에는 빠뜨렸다 | `postgres_capable_fixtures()` + 명시적 거부 테스트 (`a033118`) |
+| label 없는 `ENUM` 참조 | `sqlalchemy.Enum`은 label이 없을 때 쓰기는 통과시키고 읽기만 `LookupError`를 낸다. 쓰기 전용 검사로는 잡을 수 없다 | `_ExistingEnum` + DDL label 기반 round-trip 회귀 테스트 (`b4056c1`) |
+
+세 번째 결함의 회귀 테스트는 DB 없이 돈다
+(`tests/unit/test_postgres_schema_alignment.py::test_every_enum_column_reads_its_stored_label_back_unchanged`).
+승인된 DDL에 선언된 모든 label이 `result_processor`를 통과해도 그대로여야 한다.
+
+## Docker 이미지 검증 (2026-09-03)
+
+`Dockerfile`은 그때까지 한 번도 빌드된 적이 없었고, 실제로 빌드되지 않는 상태였다. builder
+stage가 `db/`를 복사하지 않는데 `pyproject.toml`의 `force-include`가 `db/sqlite`를 요구해
+`FileNotFoundError: Forced include not found: /build/db/sqlite`로 실패한다. 로컬에서 동일한
+build context를 재현해 확인했고, `COPY db ./db`를 추가해 고쳤다.
+
+재발을 막기 위해 `backend.yml`에 `docker` job을 두었다: 이미지를 빌드하고, 그 안에서
+`verify-golden`과 `where`를 돌리고, API로 run을 하나 계산한 뒤 **컨테이너를 재시작하고 같은
+run을 다시 읽는다**. 마지막 단계가 packaged SQLite tier와 "컨테이너가 사는 동안만 영속처럼
+보이는" in-memory repository를 구분한다. Docker가 없는 이 환경에서는 그 assertion들을
+uvicorn으로 재현해 endpoint 모양과 값(`payload_allocated_bytes = 145,000,000`, 프로세스 재시작
+후에도 동일)을 확인했고, Docker 자체는 CI가 검증한다.
 
 ## 별도 release gate
 
