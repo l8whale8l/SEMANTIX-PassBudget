@@ -263,6 +263,7 @@ feasibility·결정성, 완전탐색 대비 품질 부등식, hash 변화, 비�
 ## 별도 release gate
 
 `P0_FUNCTIONAL_SPEC.md` §14 말미의 실제 궤도 gate는 이 25개와 독립이다. 궤도 증거 gate는
-**PASS**이고 `ORBIT_DERIVED` 제품 통합이 구현됐으므로 release 상태는
-`P0_RELEASE_BLOCKED_ORBIT_INTEGRATION`이며, pushed commit에서 required GitHub Actions가 green이
-되면 해제된다. 근거는 `docs/specs/ORBIT_RELEASE_GATE.md`.
+**PASS**이고 `ORBIT_DERIVED` 제품 통합 및 `d467468`의 required CI 4/4 PASS를 확인했다.
+lean P0 상태는 `P0_CORE_ACCEPTED`다. 후속 변경은 해당 commit의 CI를 다시 통과해야 하며,
+merge는 사용자 승인 대상이다. SGP4 공개 재현 보류와 two-body 공개 검증을 구분한 근거는
+`docs/specs/ORBIT_RELEASE_GATE.md`에 기록돼 있다.

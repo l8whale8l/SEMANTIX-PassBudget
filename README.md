@@ -23,14 +23,18 @@ against a 1.000 s ceiling, over 58 passes, with zero ceiling breaches. See
 [the orbit evidence](evidence/orbit/README.md) and
 [the release gate audit](docs/specs/ORBIT_RELEASE_GATE.md).
 
-The orbit evidence gate is **PASS**. The release status is `P0_RELEASE_BLOCKED_ORBIT_INTEGRATION`:
-the cross-tool agreement is proven, and this change set connects the verified orbit engine to the
-product. `ORBIT_DERIVED` now takes an orbit assumption (a user TLE or literal two-body elements)
+The lean P0 core status is **`P0_CORE_ACCEPTED`**: orbit integration is complete and the required
+`backend` workflow passed all four jobs on commit `d467468` (2026-09-04).
+[CI evidence](https://github.com/l8whale8l/SEMANTIX-PassBudget/actions/runs/33773033361).
+Every subsequent change still requires its own green CI; this is not approval to merge the PR.
+`ORBIT_DERIVED` now takes an orbit assumption (a user TLE or literal two-body elements)
 plus WGS-84 station coordinates and a minimum elevation, generates the day's contact windows, and
 feeds them into the existing assumed-throughput capacity and model-output prioritisation over both
-the API and the CLI (see `PB-GOLDEN-ORB-01`). The remaining gate is CI: the release is unblocked
-only once the required GitHub Actions pass on the pushed commit. Every orbit result is an
-assumption-based estimate over synthetic inputs, never a KMU-ET02 performance figure.
+the API and the CLI (see `PB-GOLDEN-ORB-01`). The public cross-tool gate covers `TWO_BODY_V1`
+(`EVD-ORB-02`). SGP4 (`GP_TLE`) passed local cross-tool verification, but public reproduction is
+pending because `EVD-ORB-01` is withheld. Neither this distinction nor optional deployment work is
+hidden by the core acceptance status. Results remain assumption-based estimates, not verified
+KMU-ET02 performance figures.
 
 Specification conflicts and how each was resolved are in
 [the conflict register](docs/specs/SPEC_CONFLICT_REGISTER.md), and the acceptance-criteria status is
@@ -397,7 +401,7 @@ service at all**. It has four jobs:
 
 | Job | What it proves |
 |---|---|
-| `verify` | lint, formatting, types, the full 366-test suite including the cross-tool orbit evidence, `verify-golden`, `where`, the secret scan |
+| `verify` | lint, formatting, types, the full default suite including required public orbit evidence, `verify-golden`, `where`, the secret scan; withheld TLE and unavailable PostgreSQL tests are reported separately as skips |
 | `clean-install` | a wheel installs and runs the golden verification on a machine with no source tree |
 | `docker` | the image builds, its CLI works, and a run computed through the API is still readable after the container restarts |
 | `audit` | no known advisory affects the dependency set |

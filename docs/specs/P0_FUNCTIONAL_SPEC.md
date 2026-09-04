@@ -662,7 +662,7 @@ P-ORIGINAL remaining = 85,000,000 B
 | AC-P0-24 | branch-local failure | run PARTIAL, 유효한 선행 결과 조회 가능 |
 | AC-P0-25 | 공개 오류/로그 검사 | secret, SSH, DB URL, host absolute path 미노출 |
 
-실제 궤도 출시 gate는 별도다. production orbit provider와 독립 oracle(NASA GMAT)의 AOS/LOS/max elevation 결과, tolerance와 provenance는 합성 `VIRTUAL_CIRCULAR`(`EVD-ORB-02`)에 대해 고정·교차검증됐고(gate PASS), `ORBIT_DERIVED` 제품 통합이 구현됐다. release 상태는 `P0_RELEASE_BLOCKED_ORBIT_INTEGRATION`이며 pushed commit에서 required GitHub Actions가 green이 되면 해제된다. frozen TLE(`EVD-ORB-01`)의 public 게시는 `Q-ORB-LICENSE-01` 해결까지 보류한다.
+실제 궤도 출시 gate는 별도다. production orbit provider와 독립 oracle(NASA GMAT)의 AOS/LOS/max elevation 결과, tolerance와 provenance는 합성 `VIRTUAL_CIRCULAR`(`EVD-ORB-02`)에 대해 고정·교차검증됐고(gate PASS), `ORBIT_DERIVED` 제품 통합이 구현됐다. `d467468`의 required CI 4/4 PASS로 lean P0 상태는 `P0_CORE_ACCEPTED`다. 후속 commit은 CI 재통과가 필요하고 merge는 사용자 승인 대상이다. frozen TLE(`EVD-ORB-01`)는 로컬 교차검증 통과·공개 재현 보류이며, public 게시는 `Q-ORB-LICENSE-01` 해결까지 보류한다. two-body 공개 검증을 SGP4 공개 검증으로 대체했다고 주장하지 않는다.
 
 ## 15. 비기능 요구사항
 

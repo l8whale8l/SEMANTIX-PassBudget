@@ -1,9 +1,9 @@
 # P0 external verification record
 
-- Review date: 2026-09-03
-- Scope: orbit-to-ground contact-window calculation only
-- PM verdict: **GMAT cross-tool verification PASS; P0 product release still BLOCKED on integration**
-- Required CI status: **PENDING**
+- Review date: 2026-09-04 (original cross-tool evidence: 2026-09-03)
+- Scope: cross-tool orbit calculation and the lean P0 orbit-to-capacity-to-priority flow
+- PM verdict: **P0_CORE_ACCEPTED**, baseline `d467468`; no PR merge authorised by this record
+- Required CI status: **PASS on d467468 (4/4 jobs)**; subsequent commits require their own green CI
 
 ## 1. What was verified
 
@@ -73,7 +73,7 @@ within 0.1 m and brought the fixture inside every ceiling.
 This is the strongest evidence that the cross-tool gate was useful: the faulty output was
 plausible and would not have been caught by product self-comparison.
 
-## 6. Supporting test results reported by the verification run
+## 6. Historical supporting results (2026-09-03, before product integration)
 
 | Check | Result |
 |---|---|
@@ -84,8 +84,33 @@ plausible and would not have been caught by product self-comparison.
 | Alembic heads, offline SQL and live upgrade | PASS |
 | Wheel clean install and existing golden hashes | PASS |
 
-These results are local evidence. They do not become GitHub CI evidence until the workflows run
-from a pushed commit and report success.
+These are historical local results, not counts for the integrated product. The current baseline
+is recorded separately below; skipped tests are never counted as passing.
+
+### Integrated product baseline (2026-09-04, d467468)
+
+- PM rerun: **378 passed, 11 skipped, 2 warnings**. All 11 local skips were PostgreSQL cases,
+  not 10. Both orbit evidence sets were present locally.
+- Orbit cross-tool plus API/CLI flow tests: **31 passed** locally.
+- Public checkout omits `EVD-ORB-01`: its 11 cross-tool cases are additional skips, separate from
+  the 11 PostgreSQL cases. SGP4 has local cross-tool evidence only; `TWO_BODY_V1` has public evidence.
+- Required `backend` CI: four jobs succeeded, including wheel install, dependency audit, and
+  **Docker image build, API execution and SQLite result retrieval after restart**.
+- [PR CI run](https://github.com/l8whale8l/SEMANTIX-PassBudget/actions/runs/33773033361)
+- [Push CI run](https://github.com/l8whale8l/SEMANTIX-PassBudget/actions/runs/33772586444)
+- Optional PostgreSQL workflow was not run for this branch. H100 and external GMAT regeneration
+  were not run in the integration closeout. Docker restart was run and must not be listed as unrun.
+
+The `PB-GOLDEN-ORB-01` rerun produced 7 passes, 4,212.443830 s contact time,
+526,555,476 B capacity, 522,000,000 B allocated, and 158,000,000 B backlog. Wildfire and aircraft
+outputs completed; ship output was partial. These are assumed inputs, not mission measurements.
+The reproduced hashes at `d467468` are:
+
+- Input: `c2cb1681b11cf567c0d03ca0e6429d3186cd6d010e201914f73ae854097dd419`
+- Result: `279118d332850cefd614b53019eadeef2a0f4e73bc26e30ef737aab4b4086697`
+
+The earlier handoff's abbreviated input hash `1c44...` does not match this reproduced value and
+is corrected here; this correction is not a change to the calculation or canonical format.
 
 ## 7. Explicit limitations
 
@@ -107,18 +132,29 @@ The orbit **evidence gate is accepted** for the lean P0 scope. Additional Orekit
 high-fidelity Earth orientation, Docker restart testing and PostgreSQL operations are not required
 to proceed with the core product.
 
-The product release remains blocked because `ScenarioSnapshot` still rejects `ORBIT_DERIVED` and
-the verified orbit adapter is not connected to the user journey. The correct release status is:
+`ORBIT_DERIVED` is now accepted by the domain and connected to API and CLI. The lean P0 status is:
 
-`P0_RELEASE_BLOCKED_ORBIT_INTEGRATION`
+`P0_CORE_ACCEPTED`
 
-The remaining P0 path is deliberately small:
+The core path has been completed and verified at `d467468`:
 
-1. Connect orbit/TLE and station inputs to `ORBIT_DERIVED` contact generation.
-2. Feed generated contact duration into the existing assumed-throughput capacity calculation.
-3. Feed that capacity into the existing model-output prioritisation flow.
-4. Add one end-to-end golden scenario and preserve explicit assumption/provenance labels.
-5. Run the required GitHub Actions workflow on Ubuntu and fix it until green.
+1. Orbit/TLE and station inputs generate `ORBIT_DERIVED` contact windows.
+2. Generated contact duration feeds the existing assumed-throughput capacity calculation.
+3. Capacity feeds the existing model-output prioritisation flow.
+4. The end-to-end golden scenario includes explicit assumption/provenance labels.
+5. Required GitHub Actions passed on Ubuntu.
 
-Only after these steps may the project claim that a user can estimate daily contact time, daily
-transfer capacity and which model outputs should be transmitted first.
+The user can now estimate contact time, transfer capacity and model-output priorities under stated
+assumptions. This does not certify real delivery or KMU-ET02 performance. Orekit, H100 and optional
+database operations remain out of the lean P0 critical path. PR merge remains a user decision.
+
+## 9. Evidence-loader closeout (2026-09-04)
+
+Missing inputs may skip only for deliberately withheld `EVD-ORB-01`. Missing `EVD-ORB-02` inputs,
+unknown fixture inputs, or a missing expected table for a fixture whose inputs are present must
+fail. Five isolated regression cases enforce this without moving or deleting real evidence.
+No oracle values, tolerances, product calculations or golden hashes are changed by this closeout.
+Local closeout verification: **383 passed, 11 PostgreSQL skipped, 2 deprecation warnings**;
+orbit cross-tool tests **27 passed**; Ruff lint/format, mypy, secret scan and all golden checks PASS.
+The additional five tests are guard regressions, not five new orbit observations.
+Its new commit must pass CI independently; the `d467468` links above certify the baseline only.

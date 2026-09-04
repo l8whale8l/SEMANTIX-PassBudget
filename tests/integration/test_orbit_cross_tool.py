@@ -41,7 +41,7 @@ def _parse(text: str) -> datetime:
 
 def _load(fixture_id: str) -> tuple[dict, dict]:
     inputs_path = EVIDENCE / fixture_id / "inputs.json"
-    if not inputs_path.is_file():
+    if fixture_id == "EVD-ORB-01" and not inputs_path.is_file():
         # EVD-ORB-01 is derived from a CelesTrak-redistributed TLE and is withheld from the public
         # repository until Q-ORB-LICENSE-01 is resolved (see .gitignore and the verification
         # contract §11). Where the local evidence is present the case runs and must pass; where it
@@ -51,11 +51,44 @@ def _load(fixture_id: str) -> tuple[dict, dict]:
             f"{fixture_id} evidence is withheld pending Q-ORB-LICENSE-01; "
             "EVD-ORB-02 covers the public cross-tool gate"
         )
+    expected_path = EVIDENCE / fixture_id / "expected_table.json"
+    for required_path in (inputs_path, expected_path):
+        if not required_path.is_file():
+            pytest.fail(f"Required orbit evidence is missing: {required_path}")
     inputs = json.loads(inputs_path.read_text(encoding="utf-8"))
-    expected = json.loads(
-        (EVIDENCE / fixture_id / "expected_table.json").read_text(encoding="utf-8")
-    )
+    expected = json.loads(expected_path.read_text(encoding="utf-8"))
     return inputs, expected
+
+
+def test_only_withheld_tle_inputs_may_skip(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setitem(globals(), "EVIDENCE", tmp_path)
+    with pytest.raises(pytest.skip.Exception, match="EVD-ORB-01 evidence is withheld"):
+        _load("EVD-ORB-01")
+
+
+@pytest.mark.parametrize("fixture_id", ["EVD-ORB-02", "UNKNOWN-FIXTURE"])
+def test_required_or_unknown_fixture_inputs_missing_fail(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, fixture_id: str
+) -> None:
+    monkeypatch.setitem(globals(), "EVIDENCE", tmp_path)
+    with pytest.raises(pytest.fail.Exception, match=r"Required orbit evidence is missing:.*inputs"):
+        _load(fixture_id)
+
+
+@pytest.mark.parametrize("fixture_id", ["EVD-ORB-01", "EVD-ORB-02"])
+def test_expected_table_missing_never_skips(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, fixture_id: str
+) -> None:
+    monkeypatch.setitem(globals(), "EVIDENCE", tmp_path)
+    fixture_dir = tmp_path / fixture_id
+    fixture_dir.mkdir()
+    (fixture_dir / "inputs.json").write_text("{}", encoding="utf-8")
+    with pytest.raises(
+        pytest.fail.Exception, match=r"Required orbit evidence is missing:.*expected"
+    ):
+        _load(fixture_id)
 
 
 def _sites(inputs: dict) -> tuple[StationSite, ...]:

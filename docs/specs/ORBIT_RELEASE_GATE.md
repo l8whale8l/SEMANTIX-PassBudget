@@ -1,12 +1,13 @@
 # 실제 궤도 release gate 감사 — `PB-GOLDEN-ORB-01`
 
-> 상태: **`P0_RELEASE_BLOCKED_ORBIT_INTEGRATION`** — 궤도 증거 gate PASS, 제품 통합 구현 완료,
-> pushed commit의 required GitHub Actions green 대기 (2026-09-04 갱신)
+> 상태: **`P0_CORE_ACCEPTED`** — lean P0 제품 통합 완료, `d467468` required CI 4/4 PASS.
+> 후속 변경은 해당 commit의 CI 재통과가 필요하며, PR merge는 사용자 승인 대상이다. (2026-09-04)
 > 이전 상태: `ORBIT_EVIDENCE_COMPLETE` (2026-09-03), `P0_RELEASE_BLOCKED_NEEDS_EVIDENCE` (최초 감사)
 > 기준: `골든시나리오설계도.md` §25.11, §25.9 `G-01 ORBIT`, `P0_FUNCTIONAL_SPEC.md` §14 말미
 
-최초 감사는 §25.11이 요구한 literal artifact가 저장소에 **하나도** 없다고 기록했다. 그 목록은
-이제 모두 채워졌고, 각 항목은 실행 결과와 파일로 증명된다. 아래 표는 그 재감사 결과다.
+최초 감사의 증거 목록은 로컬에서 확보·실행됐다. 아래 표는 그 역사적 로컬 검증 기록이며,
+`EVD-ORB-01` 파일은 public Git에서 제외되어 있다. **SGP4는 로컬 교차검증 통과·공개 재현
+보류**, **two-body는 공개 교차검증 통과**다. two-body 결과를 SGP4의 공개 검증으로 간주하지 않는다.
 
 ## 재감사 결과
 
@@ -86,11 +87,18 @@
 7. ✅ API/CLI에서 provider revision과 orbit provenance 표시, `passbudget verify-golden`이
    `PB-GOLDEN-ORB-01`을 GMAT-anchored pass 수·산술 항등식·선택 결과로 검증.
 
-남은 것은 pushed commit에서 required GitHub Actions가 green이 되는 것뿐이다.
+`d467468`의 required `backend` CI는 4개 job 모두 통과했다:
+[PR run](https://github.com/l8whale8l/SEMANTIX-PassBudget/actions/runs/33773033361),
+[push run](https://github.com/l8whale8l/SEMANTIX-PassBudget/actions/runs/33772586444).
+Docker 이미지 빌드·API 실행·재시작 후 SQLite 결과 재조회도 해당 CI에서 실행됐다.
+이는 외부 GMAT 재실행이나 H100 검증을 의미하지 않는다.
+
+증거 로더는 `EVD-ORB-01`의 입력 부재만 skip을 허용한다. `EVD-ORB-02` 입력이나
+입력이 존재하는 fixture의 expected table이 없으면 테스트가 실패해야 한다.
 
 ## 남은 미해결 항목
 
 | ID | 내용 | 소유자 |
 |---|---|---|
 | `Q-ORB-LICENSE-01` | CelesTrak 재배포 조건 확인 후 `EVD-ORB-01` 공개 게시 가부. 현재는 public 저장소에서 제외(로컬 전용), CI cross-tool은 합성 `EVD-ORB-02`로만 실행 | PM / legal |
-| required CI green | pushed commit에서 `backend` workflow green 확인 | Backend |
+| 후속 변경 CI | 모든 후속 commit에서 required `backend` workflow green 재확인. 기준선 `d467468`은 PASS | Backend |
