@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+coverage/
+vitest_out.txt
+
+# Generated: CesiumJS runtime assets copied from node_modules by scripts/copy-cesium-assets.mjs
+public/cesium/
+
+# Editor
+.DS_Store
+*.log

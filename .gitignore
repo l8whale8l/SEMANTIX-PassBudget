@@ -1,0 +1,85 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+.ssh/
+secrets/
+credentials/
+*.pem
+*.key
+*.p12
+*.pfx
+*.ppk
+id_rsa*
+id_ed25519*
+
+# Private/runtime data
+data/private/
+artifacts/private/
+uploads/
+exports/
+logs/
+backups/
+*.dump
+*.backup
+*.sqlite
+*.sqlite3
+*.db
+# SQLite side files. WAL mode creates these next to the database.
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+*.db-wal
+*.db-shm
+*.sqlite-journal
+*.sqlite3-journal
+*.db-journal
+*.log
+*.pid
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+build/
+dist/
+
+# Orbit evidence withheld from the public repository pending Q-ORB-LICENSE-01.
+# EVD-ORB-01 is derived from a CelesTrak-redistributed TLE whose public-redistribution terms are
+# unresolved, so its inputs, provenance, raw element set and the GMAT oracle artifacts that embed
+# the same element string are kept local only. The fully synthetic EVD-ORB-02 is committed and is
+# the public cross-tool gate. See docs/specs/ORBIT_VERIFICATION_CONTRACT.md §11 (Q-ORB-LICENSE-01).
+evidence/orbit/EVD-ORB-01/
+evidence/orbit/oracle/gmat/EVD-ORB-01*
+evidence/orbit/oracle/gmat/raw/EVD-ORB-01*
+
+# Frontend (Node)
+node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+frontend/*.tsbuildinfo
+*.tsbuildinfo
+# Bundled Cesium runtime assets are copied from node_modules by scripts/copy-cesium-assets.mjs
+# at predev/prebuild — regenerated on install, never committed (keeps the repo small).
+frontend/public/cesium/
+# Local ASCII working copy used only to run Node tools off the non-ASCII repo path (never committed).
+/pbverify/
+
+# Local tooling and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+docker-compose.override.yml
+*.local.*
+

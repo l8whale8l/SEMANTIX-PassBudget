@@ -1,0 +1,35 @@
+# This file demonstrates the optional PostgreSQL tier. PassBudget does not need it:
+# `pip install semantix-passbudget && passbudget verify-golden` runs with no database at all,
+# and the API defaults to a local SQLite file.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: passbudget
+      POSTGRES_USER: passbudget_local
+      POSTGRES_PASSWORD: local_development_only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U passbudget_local -d passbudget"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - passbudget_pgdata:/var/lib/postgresql/data
+
+  api:
+    build: .
+    environment:
+      PASSBUDGET_ENV: development
+      # Remove this line to run the same image on its default local SQLite tier.
+      PASSBUDGET_DATABASE_URL: postgresql+psycopg://passbudget_local:local_development_only@postgres:5432/passbudget
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+
+volumes:
+  passbudget_pgdata:
+

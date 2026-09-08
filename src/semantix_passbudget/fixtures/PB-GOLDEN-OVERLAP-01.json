@@ -1,0 +1,128 @@
+{
+  "schema_version": "passbudget-input-0.2",
+  "fixture_id": "PB-GOLDEN-OVERLAP-01",
+  "analysis_mode": "NETWORK_ONLY",
+  "analysis_window": {
+    "start": "2027-01-01T00:00:00Z",
+    "end": "2027-01-02T00:00:00Z"
+  },
+  "source_revision_id": "SYN-CONTACT-OVERLAP-01-R1",
+  "safety_notice": "Synthetic regression fixture only; not an operational prediction.",
+  "stations": [
+    {
+      "stable_key": "GS-A",
+      "preference_rank": 0,
+      "capacity": {
+        "provider": "FIXED_CAPACITY_PER_CONTACT",
+        "acquisition_guard_us": 0,
+        "release_guard_us": 0,
+        "fixed_capacity_bytes": 60000000,
+        "evidence_state": "PROXY",
+        "source_revision_id": "SYN-CONTACT-OVERLAP-01-R1",
+        "rationale": "Literal synthetic capacity for overlap scheduling regression."
+      }
+    },
+    {
+      "stable_key": "GS-B",
+      "preference_rank": 1,
+      "capacity": {
+        "provider": "FIXED_CAPACITY_PER_CONTACT",
+        "acquisition_guard_us": 0,
+        "release_guard_us": 0,
+        "fixed_capacity_bytes": 40000000,
+        "evidence_state": "PROXY",
+        "source_revision_id": "SYN-CONTACT-OVERLAP-01-R1",
+        "rationale": "Literal synthetic capacity for overlap scheduling regression."
+      }
+    },
+    {
+      "stable_key": "GS-D",
+      "preference_rank": 2,
+      "capacity": {
+        "provider": "FIXED_CAPACITY_PER_CONTACT",
+        "acquisition_guard_us": 0,
+        "release_guard_us": 0,
+        "fixed_capacity_bytes": 40000000,
+        "evidence_state": "PROXY",
+        "source_revision_id": "SYN-CONTACT-OVERLAP-01-R1",
+        "rationale": "Literal synthetic capacity for overlap scheduling regression."
+      }
+    }
+  ],
+  "contacts": [
+    {
+      "stable_key": "A1",
+      "station_key": "GS-A",
+      "true_interval": {
+        "start": "2027-01-01T00:11:00Z",
+        "end": "2027-01-01T00:19:00Z"
+      }
+    },
+    {
+      "stable_key": "A2",
+      "station_key": "GS-A",
+      "true_interval": {
+        "start": "2027-01-01T06:11:00Z",
+        "end": "2027-01-01T06:19:00Z"
+      }
+    },
+    {
+      "stable_key": "A3",
+      "station_key": "GS-A",
+      "true_interval": {
+        "start": "2027-01-01T12:11:00Z",
+        "end": "2027-01-01T12:19:00Z"
+      }
+    },
+    {
+      "stable_key": "A4",
+      "station_key": "GS-A",
+      "true_interval": {
+        "start": "2027-01-01T18:11:00Z",
+        "end": "2027-01-01T18:19:00Z"
+      }
+    },
+    {
+      "stable_key": "B1",
+      "station_key": "GS-B",
+      "true_interval": {
+        "start": "2027-01-01T03:10:40Z",
+        "end": "2027-01-01T03:17:20Z"
+      }
+    },
+    {
+      "stable_key": "B2",
+      "station_key": "GS-B",
+      "true_interval": {
+        "start": "2027-01-01T09:10:40Z",
+        "end": "2027-01-01T09:17:20Z"
+      }
+    },
+    {
+      "stable_key": "B3",
+      "station_key": "GS-B",
+      "true_interval": {
+        "start": "2027-01-01T15:10:40Z",
+        "end": "2027-01-01T15:17:20Z"
+      }
+    },
+    {
+      "stable_key": "B4",
+      "station_key": "GS-B",
+      "true_interval": {
+        "start": "2027-01-01T21:10:40Z",
+        "end": "2027-01-01T21:17:20Z"
+      }
+    },
+    {
+      "stable_key": "D1",
+      "station_key": "GS-D",
+      "true_interval": {
+        "start": "2027-01-01T06:12:00Z",
+        "end": "2027-01-01T06:18:00Z"
+      }
+    }
+  ],
+  "contact_source": "SYNTHETIC_INJECTED",
+  "decision_question": "When GS-D fully overlaps the second GS-A pass on one TX resource, which whole opportunity does the objective select and what is suppressed?"
+}

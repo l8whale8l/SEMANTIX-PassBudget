@@ -1,0 +1,229 @@
+%  EVD-ORB-02 independent oracle script -- NASA GMAT R2026a
+%
+%  Generates the expected AOS/LOS/maximum-elevation table for the VIRTUAL_CIRCULAR fixture.
+%  This is a SYNTHETIC reference orbit defined by literal initial conditions. It is not a real
+%  spacecraft, and nothing derived from it describes real orbital performance.
+%
+%  Propagator profile TWO_BODY_V1, resolved by PM decision (Q-DATA-03) on 2026-09-03. Point-mass
+%  gravity only: no J2, no drag, no SRP, no third body, no relativistic correction. That choice is
+%  what makes this fixture a clean implementation test -- the dynamics are analytically exact, so a
+%  disagreement cannot be blamed on a force-model configuration difference.
+%
+%  Every setting below is dictated by the frozen TWO_BODY_V1 verification profile.
+%  No value here may be supplied by a tool default.
+
+%----------------------------------------
+%---------- Spacecraft: literal initial conditions
+%----------------------------------------
+
+Create Spacecraft VirtSat
+
+VirtSat.DateFormat       = UTCGregorian
+VirtSat.Epoch            = '03 Sep 2026 00:00:00.000'
+VirtSat.CoordinateSystem = EarthMJ2000Eq
+VirtSat.DisplayStateType = Keplerian
+VirtSat.SMA              = 7078.137
+VirtSat.ECC              = 0.0
+VirtSat.INC              = 98.0
+VirtSat.RAAN             = 90.0
+VirtSat.AOP              = 0.0
+VirtSat.TA               = 0.0
+
+%----------------------------------------
+%---------- Force model: TWO_BODY_V1
+%----------------------------------------
+%  Degree and order 0 reduces the gravity field to the point-mass term. Everything else is
+%  switched off explicitly rather than left at a default.
+
+Create ForceModel TwoBodyFM
+
+TwoBodyFM.CentralBody                      = Earth
+TwoBodyFM.PrimaryBodies                    = {Earth}
+TwoBodyFM.GravityField.Earth.Degree        = 0
+TwoBodyFM.GravityField.Earth.Order         = 0
+TwoBodyFM.GravityField.Earth.TideModel     = 'None'
+TwoBodyFM.Drag.AtmosphereModel             = None
+TwoBodyFM.PointMasses                      = {}
+TwoBodyFM.SRP                              = Off
+TwoBodyFM.RelativisticCorrection           = Off
+TwoBodyFM.ErrorControl                     = RSSStep
+
+Create Propagator TwoBodyProp
+
+TwoBodyProp.FM              = TwoBodyFM
+TwoBodyProp.Type            = RungeKutta89
+TwoBodyProp.InitialStepSize = 60
+TwoBodyProp.Accuracy        = 1e-13
+TwoBodyProp.MinStep         = 0.0
+TwoBodyProp.MaxStep         = 60
+
+%----------------------------------------
+%---------- Ground stations (synthetic verification coordinates)
+%----------------------------------------
+%  Identical to EVD-ORB-01 so the two fixtures differ only in the orbit, never in the geometry
+%  definitions. At i = 98 deg this orbit is near-polar, so SYN_GS_POLAR is expected to HAVE
+%  contacts here -- unlike in EVD-ORB-01. The zero-contact case for this fixture must therefore be
+%  read from the oracle rather than assumed.
+
+Create GroundStation SYN_GS_MIDLAT
+SYN_GS_MIDLAT.CentralBody           = Earth
+SYN_GS_MIDLAT.StateType             = Spherical
+SYN_GS_MIDLAT.HorizonReference      = Ellipsoid
+SYN_GS_MIDLAT.Location1             = 37.6
+SYN_GS_MIDLAT.Location2             = 127.0
+SYN_GS_MIDLAT.Location3             = 0.1
+SYN_GS_MIDLAT.MinimumElevationAngle = 5
+
+Create GroundStation SYN_GS_EQUATOR
+SYN_GS_EQUATOR.CentralBody           = Earth
+SYN_GS_EQUATOR.StateType             = Spherical
+SYN_GS_EQUATOR.HorizonReference      = Ellipsoid
+SYN_GS_EQUATOR.Location1             = 0.0
+SYN_GS_EQUATOR.Location2             = 60.0
+SYN_GS_EQUATOR.Location3             = 0.0
+SYN_GS_EQUATOR.MinimumElevationAngle = 5
+
+Create GroundStation SYN_GS_POLAR
+SYN_GS_POLAR.CentralBody           = Earth
+SYN_GS_POLAR.StateType             = Spherical
+SYN_GS_POLAR.HorizonReference      = Ellipsoid
+SYN_GS_POLAR.Location1             = 85.0
+SYN_GS_POLAR.Location2             = 0.0
+SYN_GS_POLAR.Location3             = 0.0
+SYN_GS_POLAR.MinimumElevationAngle = 5
+
+Create GroundStation SYN_GS_GRAZE
+SYN_GS_GRAZE.CentralBody           = Earth
+SYN_GS_GRAZE.StateType             = Spherical
+SYN_GS_GRAZE.HorizonReference      = Ellipsoid
+SYN_GS_GRAZE.Location1             = 67.2
+SYN_GS_GRAZE.Location2             = 0.0
+SYN_GS_GRAZE.Location3             = 0.0
+SYN_GS_GRAZE.MinimumElevationAngle = 5
+
+Create GroundStation SCAN_00
+SCAN_00.CentralBody           = Earth
+SCAN_00.StateType             = Spherical
+SCAN_00.HorizonReference      = Ellipsoid
+SCAN_00.Location1             = 60.0
+SCAN_00.Location2             = 0.0
+SCAN_00.Location3             = 0.0
+SCAN_00.MinimumElevationAngle = 5
+
+Create GroundStation SCAN_01
+SCAN_01.CentralBody           = Earth
+SCAN_01.StateType             = Spherical
+SCAN_01.HorizonReference      = Ellipsoid
+SCAN_01.Location1             = 60.0
+SCAN_01.Location2             = 30.0
+SCAN_01.Location3             = 0.0
+SCAN_01.MinimumElevationAngle = 5
+
+Create GroundStation SCAN_02
+SCAN_02.CentralBody           = Earth
+SCAN_02.StateType             = Spherical
+SCAN_02.HorizonReference      = Ellipsoid
+SCAN_02.Location1             = 60.0
+SCAN_02.Location2             = 60.0
+SCAN_02.Location3             = 0.0
+SCAN_02.MinimumElevationAngle = 5
+
+Create GroundStation SCAN_03
+SCAN_03.CentralBody           = Earth
+SCAN_03.StateType             = Spherical
+SCAN_03.HorizonReference      = Ellipsoid
+SCAN_03.Location1             = 60.0
+SCAN_03.Location2             = 90.0
+SCAN_03.Location3             = 0.0
+SCAN_03.MinimumElevationAngle = 5
+
+Create GroundStation SCAN_04
+SCAN_04.CentralBody           = Earth
+SCAN_04.StateType             = Spherical
+SCAN_04.HorizonReference      = Ellipsoid
+SCAN_04.Location1             = 60.0
+SCAN_04.Location2             = 120.0
+SCAN_04.Location3             = 0.0
+SCAN_04.MinimumElevationAngle = 5
+
+Create GroundStation SCAN_05
+SCAN_05.CentralBody           = Earth
+SCAN_05.StateType             = Spherical
+SCAN_05.HorizonReference      = Ellipsoid
+SCAN_05.Location1             = 60.0
+SCAN_05.Location2             = 150.0
+SCAN_05.Location3             = 0.0
+SCAN_05.MinimumElevationAngle = 5
+
+Create GroundStation SCAN_06
+SCAN_06.CentralBody           = Earth
+SCAN_06.StateType             = Spherical
+SCAN_06.HorizonReference      = Ellipsoid
+SCAN_06.Location1             = 60.0
+SCAN_06.Location2             = 180.0
+SCAN_06.Location3             = 0.0
+SCAN_06.MinimumElevationAngle = 5
+
+Create GroundStation SCAN_07
+SCAN_07.CentralBody           = Earth
+SCAN_07.StateType             = Spherical
+SCAN_07.HorizonReference      = Ellipsoid
+SCAN_07.Location1             = 60.0
+SCAN_07.Location2             = 210.0
+SCAN_07.Location3             = 0.0
+SCAN_07.MinimumElevationAngle = 5
+
+Create GroundStation SCAN_08
+SCAN_08.CentralBody           = Earth
+SCAN_08.StateType             = Spherical
+SCAN_08.HorizonReference      = Ellipsoid
+SCAN_08.Location1             = 60.0
+SCAN_08.Location2             = 240.0
+SCAN_08.Location3             = 0.0
+SCAN_08.MinimumElevationAngle = 5
+
+Create GroundStation SCAN_09
+SCAN_09.CentralBody           = Earth
+SCAN_09.StateType             = Spherical
+SCAN_09.HorizonReference      = Ellipsoid
+SCAN_09.Location1             = 60.0
+SCAN_09.Location2             = 270.0
+SCAN_09.Location3             = 0.0
+SCAN_09.MinimumElevationAngle = 5
+
+Create GroundStation SCAN_10
+SCAN_10.CentralBody           = Earth
+SCAN_10.StateType             = Spherical
+SCAN_10.HorizonReference      = Ellipsoid
+SCAN_10.Location1             = 60.0
+SCAN_10.Location2             = 300.0
+SCAN_10.Location3             = 0.0
+SCAN_10.MinimumElevationAngle = 5
+
+Create GroundStation SCAN_11
+SCAN_11.CentralBody           = Earth
+SCAN_11.StateType             = Spherical
+SCAN_11.HorizonReference      = Ellipsoid
+SCAN_11.Location1             = 60.0
+SCAN_11.Location2             = 330.0
+SCAN_11.Location3             = 0.0
+SCAN_11.MinimumElevationAngle = 5
+
+Create ContactLocator ScanCL
+ScanCL.Target               = VirtSat
+ScanCL.Observers            = {SCAN_00, SCAN_01, SCAN_02, SCAN_03, SCAN_04, SCAN_05, SCAN_06, SCAN_07, SCAN_08, SCAN_09, SCAN_10, SCAN_11}
+ScanCL.Filename             = 'EVD-ORB-02-scan.report'
+ScanCL.ReportFormat         = 'SiteViewMaxElevationReport'
+ScanCL.InputEpochFormat     = 'UTCGregorian'
+ScanCL.InitialEpoch         = '03 Sep 2026 00:00:00.000'
+ScanCL.FinalEpoch           = '04 Sep 2026 00:00:00.000'
+ScanCL.UseEntireInterval    = false
+ScanCL.StepSize             = 10
+ScanCL.UseLightTimeDelay    = false
+ScanCL.UseStellarAberration = false
+ScanCL.WriteReport          = true
+ScanCL.RunMode              = Automatic
+
+BeginMissionSequence
+
+Propagate TwoBodyProp(VirtSat) {VirtSat.ElapsedDays = 1.05}

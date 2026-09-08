@@ -1,0 +1,116 @@
+{
+  "schema_version": "passbudget-input-0.2",
+  "fixture_id": "PB-GOLDEN-HORIZON-01",
+  "analysis_mode": "QUEUE_AWARE",
+  "analysis_window": {
+    "start": "2027-01-01T00:00:00Z",
+    "end": "2027-01-01T00:01:00Z"
+  },
+  "source_revision_id": "SYN-CONTACT-HORIZON-01-R1",
+  "policy_revision_id": "DEADLINE_SEVERITY_CORE_V1",
+  "contact_source": "SYNTHETIC_INJECTED",
+  "decision_question": "When a large overlapping opportunity would make a MANDATORY deadline unreachable, does the horizon-aware objective still prefer the smaller feasible one? (AC-32)",
+  "safety_notice": "Synthetic regression fixture only. These are modeled results from injected assumptions and do not mean a ground-station reservation, a command plan, a successful link, or verified ground reception.",
+  "stations": [
+    {
+      "stable_key": "GS-X",
+      "preference_rank": 0,
+      "capacity": {
+        "provider": "FIXED_CAPACITY_PER_CONTACT",
+        "acquisition_guard_us": 0,
+        "release_guard_us": 0,
+        "fixed_capacity_bytes": 10000000,
+        "evidence_state": "PROXY",
+        "source_revision_id": "SYN-CONTACT-HORIZON-01-R1",
+        "rationale": "Literal synthetic capacity for the horizon-objective regression."
+      }
+    },
+    {
+      "stable_key": "GS-Y",
+      "preference_rank": 1,
+      "capacity": {
+        "provider": "FIXED_CAPACITY_PER_CONTACT",
+        "acquisition_guard_us": 0,
+        "release_guard_us": 0,
+        "fixed_capacity_bytes": 6000000,
+        "evidence_state": "PROXY",
+        "source_revision_id": "SYN-CONTACT-HORIZON-01-R1",
+        "rationale": "Literal synthetic capacity for the horizon-objective regression."
+      }
+    },
+    {
+      "stable_key": "GS-Z",
+      "preference_rank": 2,
+      "capacity": {
+        "provider": "FIXED_CAPACITY_PER_CONTACT",
+        "acquisition_guard_us": 0,
+        "release_guard_us": 0,
+        "fixed_capacity_bytes": 10000000,
+        "evidence_state": "PROXY",
+        "source_revision_id": "SYN-CONTACT-HORIZON-01-R1",
+        "rationale": "Literal synthetic capacity for the horizon-objective regression."
+      }
+    }
+  ],
+  "contacts": [
+    {
+      "stable_key": "X1",
+      "station_key": "GS-X",
+      "true_interval": {
+        "start": "2027-01-01T00:00:00Z",
+        "end": "2027-01-01T00:00:10Z"
+      }
+    },
+    {
+      "stable_key": "Y1",
+      "station_key": "GS-Y",
+      "true_interval": {
+        "start": "2027-01-01T00:00:00Z",
+        "end": "2027-01-01T00:00:04Z"
+      }
+    },
+    {
+      "stable_key": "Z1",
+      "station_key": "GS-Z",
+      "true_interval": {
+        "start": "2027-01-01T00:00:20Z",
+        "end": "2027-01-01T00:00:30Z"
+      }
+    }
+  ],
+  "payloads": [
+    {
+      "stable_key": "M1",
+      "display_name": "M1",
+      "media_type": "application/octet-stream",
+      "producer_kind": "MODEL_DERIVED",
+      "logical_size_bytes": 6000000,
+      "storage_size_bytes": 6000000,
+      "ready_at": "2027-01-01T00:00:00Z",
+      "service_class": "MANDATORY",
+      "deadline_severity": 0,
+      "mission_priority": 100,
+      "queue_sequence": 1,
+      "segmentation": "ATOMIC_OBJECT",
+      "resume_supported": false,
+      "deadline_at": "2027-01-01T00:00:05Z",
+      "deadline_target": "INSTANCE_COMPLETE",
+      "post_deadline_action": "CONTINUE_AND_REPORT"
+    },
+    {
+      "stable_key": "M2",
+      "display_name": "M2",
+      "media_type": "application/octet-stream",
+      "producer_kind": "MODEL_DERIVED",
+      "logical_size_bytes": 10000000,
+      "storage_size_bytes": 10000000,
+      "ready_at": "2027-01-01T00:00:00Z",
+      "service_class": "MANDATORY",
+      "deadline_severity": 0,
+      "mission_priority": 90,
+      "queue_sequence": 2,
+      "segmentation": "ATOMIC_OBJECT",
+      "resume_supported": false
+    }
+  ]
+}

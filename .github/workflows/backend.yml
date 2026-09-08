@@ -1,0 +1,128 @@
+name: backend
+
+# The default pipeline runs with no database service of any kind. PassBudget's calculation core
+# needs none, and its local persistence tier is a SQLite file. See
+# docs/architecture/ADR-0003-persistence-tiers.md.
+#
+# PostgreSQL is an optional deployment tier, so its checks live in the separate, manually
+# triggered `postgresql` workflow rather than gating every push.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    name: lint, types and the full default suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      # The orbit engine (python-sgp4) is a core dependency now that the ORBIT_DERIVED gate is
+      # open (ADR-0004, PM decision). `[dev]` is enough; the `orbit` extra is kept as an empty
+      # compatibility alias.
+      - run: python -m pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: mypy src
+      # The PostgreSQL cases skip here; the `postgresql` workflow runs them. The orbit cross-tool
+      # gate runs on the committed, fully synthetic EVD-ORB-02 (which needs neither GMAT nor the
+      # network). EVD-ORB-01 is derived from a CelesTrak TLE and is withheld pending
+      # Q-ORB-LICENSE-01, so its cross-tool cases skip here with an explicit reason rather than
+      # publishing the element set; a skipped case is reported as skipped, never as a pass.
+      - run: pytest
+      - run: passbudget verify-golden
+      - run: passbudget where
+      - run: python scripts/secret_scan.py
+
+  clean-install:
+    name: wheel install with no source tree and no database
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build --wheel
+      # Installed from the wheel only: no checkout on the path, no PostgreSQL, no Docker.
+      - run: python -m pip install dist/*.whl
+      - working-directory: ${{ runner.temp }}
+        run: passbudget verify-golden
+      - working-directory: ${{ runner.temp }}
+        run: passbudget where
+      - working-directory: ${{ runner.temp }}
+        run: passbudget run PB-GOLDEN-QUEUE-01 --output queue.json --persist
+      - working-directory: ${{ runner.temp }}
+        run: >-
+          python -c "import json; d = json.load(open('queue.json'));
+          assert d['result']['metrics']['payload_allocated_bytes'] == 145000000, d"
+
+  docker:
+    name: image builds, serves and survives a restart
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t passbudget:ci .
+      # The CLI must work inside the image with no database and no source tree.
+      - run: docker run --rm passbudget:ci passbudget verify-golden
+      - run: docker run --rm passbudget:ci passbudget where
+      - name: serve a run and read it back after a restart
+        run: |
+          wait_for_health() {
+            for _ in $(seq 1 60); do
+              if curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1; then return 0; fi
+              sleep 1
+            done
+            echo "the API never became healthy"
+            docker logs passbudget_ci
+            return 1
+          }
+
+          docker volume create passbudget_ci_data
+          docker run -d --name passbudget_ci -p 8000:8000 \
+            -v passbudget_ci_data:/app/data passbudget:ci
+          wait_for_health
+
+          tier=$(curl -fsS http://127.0.0.1:8000/health | jq -r .persistence)
+          test "$tier" = sqlite || { echo "expected the sqlite tier, got '$tier'"; exit 1; }
+
+          run_id=$(curl -fsS -X POST http://127.0.0.1:8000/api/v1/runs \
+            -H 'content-type: application/json' \
+            -d '{"fixture": "PB-GOLDEN-QUEUE-01"}' | jq -r .run_id)
+          test -n "$run_id" && test "$run_id" != null
+
+          # The run must still be readable once the process that computed it is gone. That is
+          # what distinguishes the packaged SQLite tier from an in-memory repository that only
+          # looks persistent for as long as the container lives.
+          docker restart passbudget_ci
+          wait_for_health
+
+          allocated=$(curl -fsS "http://127.0.0.1:8000/api/v1/runs/$run_id/results" \
+            | jq -r '.result.metrics.payload_allocated_bytes')
+          test "$allocated" = 145000000 \
+            || { echo "expected 145000000 allocated bytes, got '$allocated'"; exit 1; }
+      - if: always()
+        run: |
+          docker rm -f passbudget_ci || true
+          docker volume rm passbudget_ci_data || true
+
+  audit:
+    name: dependency advisories
+    # A separate job on purpose: a newly published advisory says something about the
+    # dependency set, not about the code, and the two signals should stay distinguishable.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: pip-audit --progress-spinner off

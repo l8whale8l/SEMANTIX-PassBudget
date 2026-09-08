@@ -1,0 +1,196 @@
+%  EVD-ORB-02 independent oracle script -- NASA GMAT R2026a
+%
+%  Generates the expected AOS/LOS/maximum-elevation table for the VIRTUAL_CIRCULAR fixture.
+%  This is a SYNTHETIC reference orbit defined by literal initial conditions. It is not a real
+%  spacecraft, and nothing derived from it describes real orbital performance.
+%
+%  Propagator profile TWO_BODY_V1, resolved by PM decision (Q-DATA-03) on 2026-09-03. Point-mass
+%  gravity only: no J2, no drag, no SRP, no third body, no relativistic correction. That choice is
+%  what makes this fixture a clean implementation test -- the dynamics are analytically exact, so a
+%  disagreement cannot be blamed on a force-model configuration difference.
+%
+%  Every setting below is dictated by the frozen TWO_BODY_V1 verification profile.
+%  No value here may be supplied by a tool default.
+
+%----------------------------------------
+%---------- Spacecraft: literal initial conditions
+%----------------------------------------
+
+Create Spacecraft VirtSat
+
+VirtSat.DateFormat       = UTCGregorian
+VirtSat.Epoch            = '03 Sep 2026 00:00:00.000'
+VirtSat.CoordinateSystem = EarthMJ2000Eq
+VirtSat.DisplayStateType = Keplerian
+VirtSat.SMA              = 7078.137
+VirtSat.ECC              = 0.0
+VirtSat.INC              = 98.0
+VirtSat.RAAN             = 90.0
+VirtSat.AOP              = 0.0
+VirtSat.TA               = 0.0
+
+%----------------------------------------
+%---------- Force model: TWO_BODY_V1
+%----------------------------------------
+%  Degree and order 0 reduces the gravity field to the point-mass term. Everything else is
+%  switched off explicitly rather than left at a default.
+
+Create ForceModel TwoBodyFM
+
+TwoBodyFM.CentralBody                      = Earth
+TwoBodyFM.PrimaryBodies                    = {Earth}
+TwoBodyFM.GravityField.Earth.Degree        = 0
+TwoBodyFM.GravityField.Earth.Order         = 0
+TwoBodyFM.GravityField.Earth.TideModel     = 'None'
+TwoBodyFM.Drag.AtmosphereModel             = None
+TwoBodyFM.PointMasses                      = {}
+TwoBodyFM.SRP                              = Off
+TwoBodyFM.RelativisticCorrection           = Off
+TwoBodyFM.ErrorControl                     = RSSStep
+
+Create Propagator TwoBodyProp
+
+TwoBodyProp.FM              = TwoBodyFM
+TwoBodyProp.Type            = RungeKutta89
+TwoBodyProp.InitialStepSize = 60
+TwoBodyProp.Accuracy        = 1e-13
+TwoBodyProp.MinStep         = 0.0
+TwoBodyProp.MaxStep         = 60
+
+%----------------------------------------
+%---------- Ground stations (synthetic verification coordinates)
+%----------------------------------------
+%  Identical to EVD-ORB-01 so the two fixtures differ only in the orbit, never in the geometry
+%  definitions. At i = 98 deg this orbit is near-polar, so SYN_GS_POLAR is expected to HAVE
+%  contacts here -- unlike in EVD-ORB-01. The zero-contact case for this fixture must therefore be
+%  read from the oracle rather than assumed.
+
+Create GroundStation SYN_GS_MIDLAT
+SYN_GS_MIDLAT.CentralBody           = Earth
+SYN_GS_MIDLAT.StateType             = Spherical
+SYN_GS_MIDLAT.HorizonReference      = Ellipsoid
+SYN_GS_MIDLAT.Location1             = 37.6
+SYN_GS_MIDLAT.Location2             = 127.0
+SYN_GS_MIDLAT.Location3             = 0.1
+SYN_GS_MIDLAT.MinimumElevationAngle = 5
+
+Create GroundStation SYN_GS_EQUATOR
+SYN_GS_EQUATOR.CentralBody           = Earth
+SYN_GS_EQUATOR.StateType             = Spherical
+SYN_GS_EQUATOR.HorizonReference      = Ellipsoid
+SYN_GS_EQUATOR.Location1             = 0.0
+SYN_GS_EQUATOR.Location2             = 60.0
+SYN_GS_EQUATOR.Location3             = 0.0
+SYN_GS_EQUATOR.MinimumElevationAngle = 5
+
+Create GroundStation SYN_GS_POLAR
+SYN_GS_POLAR.CentralBody           = Earth
+SYN_GS_POLAR.StateType             = Spherical
+SYN_GS_POLAR.HorizonReference      = Ellipsoid
+SYN_GS_POLAR.Location1             = 85.0
+SYN_GS_POLAR.Location2             = 0.0
+SYN_GS_POLAR.Location3             = 0.0
+SYN_GS_POLAR.MinimumElevationAngle = 5
+
+Create GroundStation SYN_GS_GRAZE
+SYN_GS_GRAZE.CentralBody           = Earth
+SYN_GS_GRAZE.StateType             = Spherical
+SYN_GS_GRAZE.HorizonReference      = Ellipsoid
+SYN_GS_GRAZE.Location1             = 67.2
+SYN_GS_GRAZE.Location2             = 0.0
+SYN_GS_GRAZE.Location3             = 0.0
+SYN_GS_GRAZE.MinimumElevationAngle = 5
+
+%  Tangent-pass coverage. Found by an oracle-only scan of twelve candidate sites at 60 deg N
+%  across longitudes (the scan script and its raw report are preserved beside this file). This
+%  site's best pass culminates at 5.047622 deg -- 0.048 deg above the mask -- which is the most
+%  ill-conditioned AOS/LOS geometry in either fixture, because dE/dt approaches zero there.
+%  The product engine took no part in choosing it.
+Create GroundStation SYN_GS_TANGENT
+SYN_GS_TANGENT.CentralBody           = Earth
+SYN_GS_TANGENT.StateType             = Spherical
+SYN_GS_TANGENT.HorizonReference      = Ellipsoid
+SYN_GS_TANGENT.Location1             = 60.0
+SYN_GS_TANGENT.Location2             = 210.0
+SYN_GS_TANGENT.Location3             = 0.0
+SYN_GS_TANGENT.MinimumElevationAngle = 5
+
+%----------------------------------------
+%---------- Contact location: W1
+%----------------------------------------
+
+Create ContactLocator MaxElevationCL
+
+MaxElevationCL.Target               = VirtSat
+MaxElevationCL.Observers            = {SYN_GS_MIDLAT, SYN_GS_EQUATOR, SYN_GS_POLAR, SYN_GS_GRAZE, SYN_GS_TANGENT}
+MaxElevationCL.Filename             = 'EVD-ORB-02-maxelev.report'
+MaxElevationCL.ReportFormat         = 'SiteViewMaxElevationReport'
+MaxElevationCL.InputEpochFormat     = 'UTCGregorian'
+MaxElevationCL.InitialEpoch         = '03 Sep 2026 00:00:00.000'
+MaxElevationCL.FinalEpoch           = '04 Sep 2026 00:00:00.000'
+MaxElevationCL.UseEntireInterval    = false
+MaxElevationCL.StepSize             = 10
+MaxElevationCL.UseLightTimeDelay    = false
+MaxElevationCL.UseStellarAberration = false
+MaxElevationCL.WriteReport          = true
+MaxElevationCL.RunMode              = Automatic
+
+Create ContactLocator LegacyCL
+
+LegacyCL.Target               = VirtSat
+LegacyCL.Observers            = {SYN_GS_MIDLAT, SYN_GS_EQUATOR, SYN_GS_POLAR, SYN_GS_GRAZE, SYN_GS_TANGENT}
+LegacyCL.Filename             = 'EVD-ORB-02-legacy.report'
+LegacyCL.InputEpochFormat     = 'UTCGregorian'
+LegacyCL.InitialEpoch         = '03 Sep 2026 00:00:00.000'
+LegacyCL.FinalEpoch           = '04 Sep 2026 00:00:00.000'
+LegacyCL.UseEntireInterval    = false
+LegacyCL.StepSize             = 10
+LegacyCL.UseLightTimeDelay    = false
+LegacyCL.UseStellarAberration = false
+LegacyCL.WriteReport          = true
+LegacyCL.RunMode              = Automatic
+
+%----------------------------------------
+%---------- W2: boundary-clipping and zero-contact coverage
+%----------------------------------------
+%  Derived from THIS TOOL's W1 output by the rule in contract section 7.1: the maximum-elevation
+%  times of the first two SYN_GS_MIDLAT passes (10:31:58.798 and 12:09:21.525), each rounded up
+%  to the next whole minute. Clips one pass at the start and one at the end, and leaves several
+%  stations with no contact at all -- which W1 cannot provide for this near-polar orbit.
+
+Create ContactLocator MaxElevationCL_W2
+MaxElevationCL_W2.Target               = VirtSat
+MaxElevationCL_W2.Observers            = {SYN_GS_MIDLAT, SYN_GS_EQUATOR, SYN_GS_POLAR, SYN_GS_GRAZE, SYN_GS_TANGENT}
+MaxElevationCL_W2.Filename             = 'EVD-ORB-02-W2-maxelev.report'
+MaxElevationCL_W2.ReportFormat         = 'SiteViewMaxElevationReport'
+MaxElevationCL_W2.InputEpochFormat     = 'UTCGregorian'
+MaxElevationCL_W2.InitialEpoch         = '03 Sep 2026 10:32:00.000'
+MaxElevationCL_W2.FinalEpoch           = '03 Sep 2026 12:10:00.000'
+MaxElevationCL_W2.UseEntireInterval    = false
+MaxElevationCL_W2.StepSize             = 10
+MaxElevationCL_W2.UseLightTimeDelay    = false
+MaxElevationCL_W2.UseStellarAberration = false
+MaxElevationCL_W2.WriteReport          = true
+MaxElevationCL_W2.RunMode              = Automatic
+
+Create ContactLocator LegacyCL_W2
+LegacyCL_W2.Target               = VirtSat
+LegacyCL_W2.Observers            = {SYN_GS_MIDLAT, SYN_GS_EQUATOR, SYN_GS_POLAR, SYN_GS_GRAZE, SYN_GS_TANGENT}
+LegacyCL_W2.Filename             = 'EVD-ORB-02-W2-legacy.report'
+LegacyCL_W2.InputEpochFormat     = 'UTCGregorian'
+LegacyCL_W2.InitialEpoch         = '03 Sep 2026 10:32:00.000'
+LegacyCL_W2.FinalEpoch           = '03 Sep 2026 12:10:00.000'
+LegacyCL_W2.UseEntireInterval    = false
+LegacyCL_W2.StepSize             = 10
+LegacyCL_W2.UseLightTimeDelay    = false
+LegacyCL_W2.UseStellarAberration = false
+LegacyCL_W2.WriteReport          = true
+LegacyCL_W2.RunMode              = Automatic
+
+%----------------------------------------
+%---------- Mission sequence
+%----------------------------------------
+
+BeginMissionSequence
+
+Propagate TwoBodyProp(VirtSat) {VirtSat.ElapsedDays = 1.05}

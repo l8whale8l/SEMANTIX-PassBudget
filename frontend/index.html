@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SEMANTIX PassBudget</title>
+    <!-- CesiumJS loads its Workers and the bundled Natural Earth II base imagery from this
+         same-origin path (assets copied into public/cesium/ by scripts/copy-cesium-assets.mjs),
+         so the globe runs with no Cesium Ion and no external network. Must be set before any
+         module that imports Cesium. -->
+    <script>
+      window.CESIUM_BASE_URL = '/cesium/'
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
