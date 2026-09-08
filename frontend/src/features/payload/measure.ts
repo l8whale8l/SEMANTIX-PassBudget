@@ -22,7 +22,7 @@ export function measureFile(file: File): MeasuredFile {
   return { name: file.name, sizeBytes: file.size }
 }
 
-/** Decimal byte factors for the assumed-size unit picker (MB = 1,000,000 B, never MiB — ADR-0005). */
+/** Decimal byte factors for the assumed-size unit picker (MB = 1,000,000 B, never MiB). */
 export const ASSUMED_UNIT_FACTORS: Record<string, number> = {
   B: 1,
   KB: 1_000,

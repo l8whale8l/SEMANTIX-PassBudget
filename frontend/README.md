@@ -2,8 +2,7 @@
 
 React + TypeScript UI for the PassBudget downlink-budget workbench. The verified Python backend is
 the single source of truth for every calculation; this app only edits inputs, calls the real API,
-and displays and compares results. It performs **no** budget/scheduling math of its own
-(ADR-0005).
+and displays and compares results. It performs **no** budget/scheduling math of its own.
 
 ## What works today (F0–F3)
 

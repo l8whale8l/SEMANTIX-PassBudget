@@ -29,7 +29,7 @@ FORBIDDEN_MODULES = {
     "httpx",
     "random",
     "secrets",
-    # The orbit engine. ADR-0004 keeps every propagator behind the ContactProvider port, so the
+    # The orbit engine stays behind the ContactProvider port, so the
     # domain must never see an orbit library -- exactly as it never sees SQLAlchemy.
     "sgp4",
 }
@@ -96,11 +96,11 @@ def test_only_the_composition_root_reads_the_environment() -> None:
 
 
 def test_the_orbit_engine_stays_behind_its_adapter() -> None:
-    """ADR-0004: no layer above `adapters/orbit` may import the propagator.
+    """No layer above `adapters/orbit` may import the propagator.
 
     The orbit adapter is the only place allowed to touch `sgp4`. If a future change imports it
     from the domain, the application layer or an interface, the engine stops being replaceable
-    and the float-precision boundary in ADR-0001's numerical contract stops being enforceable.
+    and the float-precision boundary in the numerical contract stops being enforceable.
     """
     orbit_adapter = SRC / "adapters" / "orbit"
     offenders = []
@@ -115,7 +115,7 @@ def test_the_orbit_engine_stays_behind_its_adapter() -> None:
 def test_the_synthetic_provider_is_untouched_by_the_orbit_work() -> None:
     """The synthetic provider stays a separate provider, not a mode of the orbit one.
 
-    ADR-0004 forbids merging or wrapping them: a shared code path is how a synthetic result
+    The architecture forbids merging or wrapping them: a shared code path is how a synthetic result
     would eventually get relabelled as an orbit result.
     """
     synthetic = (SRC / "adapters" / "synthetic_contact.py").read_text(encoding="utf-8")

@@ -1,6 +1,6 @@
 // Evidence / decision-grade badge.
 //
-// Estimates must never read as measured facts (ADR-0005 §5). This badge renders an evidence or
+// Estimates must never read as measured facts. This badge renders an evidence or
 // decision grade as text (not colour alone, §8), so a proxy-derived result is always marked.
 
 export type BadgeTone = 'assumption' | 'concept' | 'info' | 'warn'

@@ -1,6 +1,6 @@
 """Run comparison read model and human-readable report.
 
-`RunComparison` is derived, never stored (ADR-013). It reads two terminal results and returns a
+`RunComparison` is derived, never stored. It reads two terminal results and returns a
 new document; neither input is mutated. A numeric delta is produced only when the two metric rows
 agree on metric code, unit, definition revision, accounting layer and result schema version. When
 they do not, both values are still shown and the delta and ratio are `null` with a reason.

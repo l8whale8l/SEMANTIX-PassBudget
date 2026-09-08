@@ -3,7 +3,7 @@
 These cases exercise the *product* path (not the cross-tool oracle in `test_orbit_cross_tool.py`).
 They prove that the same verified orbit engine reached through the `ContactProvider` port produces
 identical results over the API and the CLI, that the generated windows flow into the existing
-capacity and model-output prioritisation, and that the ADR-0002 provenance split is enforced.
+capacity and model-output prioritisation, and that the contact-source provenance split is enforced.
 """
 
 from __future__ import annotations
@@ -144,7 +144,7 @@ def test_orbit_derived_requires_an_orbit_assumption() -> None:
 
 
 def test_a_service_without_an_orbit_provider_refuses_orbit_derived() -> None:
-    """No fallback to the synthetic provider (ADR-0004): a misconfigured deployment fails loudly."""
+    """No fallback to the synthetic provider: a misconfigured deployment fails loudly."""
     service = RunScenarioService(SyntheticContactProvider(), InMemoryRunRepository())
     snapshot = load_fixture_source(FIXTURE).to_domain()
     try:

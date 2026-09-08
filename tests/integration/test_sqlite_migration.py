@@ -122,7 +122,7 @@ def test_enum_columns_reject_an_unknown_code(sqlite_path: Path) -> None:
 
 
 def test_orbit_derived_access_still_requires_a_maximum_elevation(sqlite_path: Path) -> None:
-    """The ADR-0002 contract is mirrored, not weakened, in the local tier."""
+    """The contact-source contract is mirrored, not weakened, in the local tier."""
     connection = schema.open_database(sqlite_path)
     try:
         with pytest.raises(sqlite3.IntegrityError):

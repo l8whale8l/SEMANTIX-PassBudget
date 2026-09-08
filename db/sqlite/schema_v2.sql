@@ -9,7 +9,7 @@
 -- So the catalog gets its own tables here (prefixed `catalog_`), storing exactly the opaque JSON
 -- the CatalogRepository port is defined around — a faithful, on-disk mirror of the in-memory
 -- adapter. This makes scenarios, revisions and snapshots survive a backend restart on the SQLite
--- tier. Migration is forward-only (see schema.py / ADR-0003); recovering an older file is a file
+-- tier. Migration is forward-only (see schema.py); recovering an older file is a file
 -- copy, and backing up the catalog is backing up the same single database file as the run rows.
 --
 -- Representation contract matches v1: UUIDs from the application, digests as 64-char hex TEXT,

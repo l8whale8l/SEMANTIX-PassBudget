@@ -36,7 +36,7 @@ CREATE TABLE scenario (
   )
 );
 
--- 2. Immutable scenario revision. The contact-source contract of ADR-0002 is enforced here too:
+-- 2. Immutable scenario revision. The contact-source contract is enforced here too:
 -- a synthetic revision may not carry an orbit revision, and an orbit revision must carry one.
 CREATE TABLE scenario_revision (
   id                                   TEXT PRIMARY KEY,
@@ -331,7 +331,7 @@ CREATE TABLE run_result (
 );
 
 -- 13. Pure geometric access. Maximum elevation is forbidden for a synthetic injected contact and
--- mandatory for an orbit-derived one, exactly as ADR-0002 requires of the PostgreSQL schema.
+-- mandatory for an orbit-derived one, matching the PostgreSQL schema.
 CREATE TABLE geometric_access (
   result_id               TEXT PRIMARY KEY REFERENCES run_result(id) ON DELETE RESTRICT,
   scenario_station_id     TEXT NOT NULL REFERENCES scenario_station(id) ON DELETE RESTRICT,
@@ -489,7 +489,7 @@ CREATE TABLE run_annotation (
 
 -- 21. Immutable rendered result document.
 -- The typed rows above remain the relational record of the run; this is the versioned execution
--- artifact, exactly the role ADR-008 gives `input_snapshot.canonical_payload` on the input side.
+-- artifact, mirroring `input_snapshot.canonical_payload` on the input side.
 -- It exists so a restarted process can serve GET /runs/{id}/results without recomputing, and its
 -- hash is checked against scenario_run.result_content_hash on read.
 CREATE TABLE run_result_document (

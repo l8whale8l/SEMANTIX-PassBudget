@@ -241,9 +241,9 @@ class GeodeticSite:
     """A ground station's WGS-84 position and its constant elevation mask.
 
     Present only for ``ORBIT_DERIVED`` scenarios; forbidden for ``SYNTHETIC_INJECTED`` ones, where
-    a contact carries no station geometry (ADR-0002). Every value is an exact integer in a
+    a contact carries no station geometry. Every value is an exact integer in a
     micro-unit so it can enter the canonical input hash without a binary float. The orbit adapter
-    converts these to floating-point degrees and metres at its own boundary, per ADR-0001.
+    converts these to floating-point degrees and metres at its own boundary.
     """
 
     latitude_udeg: int
@@ -688,12 +688,12 @@ class ScenarioSnapshot:
             )
 
     def _validate_contact_source(self) -> None:
-        """Enforce the ADR-0002 provenance split at the domain boundary.
+        """Enforce the contact-source provenance split at the domain boundary.
 
         ORBIT_DERIVED needs an orbit assumption and full station geometry, and the provider
         generates its contacts, so injecting a contact list is a conflict. SYNTHETIC_INJECTED is
         the mirror image: no orbit, no station geometry, no fabricated elevation. The database
-        CHECK constraints (ADR-0002) enforce the same rule at the row level; keeping both in step
+        CHECK constraints enforce the same rule at the row level; keeping both in step
         is deliberate.
         """
         if self.contact_source is ContactSource.ORBIT_DERIVED:

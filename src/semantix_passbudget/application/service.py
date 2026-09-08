@@ -427,7 +427,7 @@ class RunScenarioService:
         """Pick the provider by contact source. ORBIT_DERIVED needs an injected orbit provider.
 
         There is no fallback: an ORBIT_DERIVED snapshot on a service with no orbit provider is a
-        configuration error, never silently served by the synthetic provider (ADR-0004).
+        configuration error, never silently served by the synthetic provider.
         """
         if snapshot.contact_source is ContactSource.ORBIT_DERIVED:
             if self._orbit_provider is None:

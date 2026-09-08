@@ -7,7 +7,7 @@ wall-clock reads, no environment reads, no filesystem access.
 Design note. This module deliberately does not import anything from `domain/` or
 `application/`. It is a pure geometry service, so the provider that adapts it to
 `ContactProvider` can be thin and the architecture test can keep proving that the domain
-never sees an orbit library. See ADR-0004.
+never sees an orbit library.
 """
 
 from __future__ import annotations
@@ -207,7 +207,7 @@ def _locate_peak(curve: _ElevationCurve, low: float, high: float) -> tuple[float
 def _as_datetime(moment_s: float) -> datetime:
     """Quantise to whole microseconds, half-even, exactly once, on the way out.
 
-    ADR-0001's numerical contract: float precision is kept inside the adapter and the canonical
+    Numerical contract: float precision is kept inside the adapter and the canonical
     result is quantised only at the boundary. `round` on a Python float is half-even, matching
     `time_quantization_revision = UTC_US_HALF_EVEN_V1`.
     """

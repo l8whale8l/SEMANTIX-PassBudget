@@ -1,8 +1,7 @@
 name: backend
 
 # The default pipeline runs with no database service of any kind. PassBudget's calculation core
-# needs none, and its local persistence tier is a SQLite file. See
-# docs/architecture/ADR-0003-persistence-tiers.md.
+# needs none, and its local persistence tier is a SQLite file.
 #
 # PostgreSQL is an optional deployment tier, so its checks live in the separate, manually
 # triggered `postgresql` workflow rather than gating every push.
@@ -23,7 +22,7 @@ jobs:
           cache: pip
       - run: python -m pip install --upgrade pip
       # The orbit engine (python-sgp4) is a core dependency now that the ORBIT_DERIVED gate is
-      # open (ADR-0004, PM decision). `[dev]` is enough; the `orbit` extra is kept as an empty
+      # open. `[dev]` is enough; the `orbit` extra is kept as an empty
       # compatibility alias.
       - run: python -m pip install -e ".[dev]"
       - run: ruff check .

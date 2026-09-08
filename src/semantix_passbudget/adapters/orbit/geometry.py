@@ -5,8 +5,7 @@ Nothing in this module may be changed to make a comparison pass; a change here i
 to the verification contract and requires an entry in its amendment log.
 
 Floating point stays inside this module and its callers at full double precision. Quantisation
-to canonical microseconds happens exactly once, in the provider, on the way out -- see ADR-0001
-`Numerical contract`.
+to canonical microseconds happens exactly once, in the provider, on the way out.
 """
 
 from __future__ import annotations

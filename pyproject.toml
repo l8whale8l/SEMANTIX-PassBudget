@@ -15,10 +15,10 @@ dependencies = [
   "pydantic>=2.11,<3",
   "pydantic-settings>=2.10,<3",
   "psycopg[binary]>=3.2,<4",
-  # The orbit contact provider (ADR-0004, PM decision 2026-09-03). Promoted from an optional extra
+  # The orbit contact provider. Promoted from an optional extra
   # to a core dependency now that the ORBIT_DERIVED domain gate is open: it is required for the
   # core user flow. python-sgp4 is MIT, pure-Python-installable, and carries no runtime data files
-  # or network access, so ADR-0001's "Python 3.12 is required, nothing else is" still holds.
+  # or network access, so the Python-only installation contract still holds.
   "sgp4>=2.27,<3",
   "sqlalchemy>=2.0,<3",
   "uvicorn[standard]>=0.35,<1",

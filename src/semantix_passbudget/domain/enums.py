@@ -239,7 +239,7 @@ class PolicyKind(StrEnum):
 
 
 class ContactSource(StrEnum):
-    """Provenance of a contact interval. See ADR-0002."""
+    """Provenance of a contact interval."""
 
     ORBIT_DERIVED = "ORBIT_DERIVED"
     SYNTHETIC_INJECTED = "SYNTHETIC_INJECTED"

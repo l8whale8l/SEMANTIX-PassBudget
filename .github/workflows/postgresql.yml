@@ -1,7 +1,7 @@
 name: postgresql (optional tier)
 
 # PostgreSQL is an optional server tier, not a requirement to build, install, run or test
-# PassBudget (ADR-0003). These checks therefore do not gate every push. Run them:
+# PassBudget. These checks therefore do not gate every push. Run them:
 #
 #   * manually, from the Actions tab ("Run workflow"), or
 #   * automatically when the PostgreSQL adapter, its DDL or its migrations change on main.

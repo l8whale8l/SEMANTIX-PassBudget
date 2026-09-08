@@ -196,7 +196,7 @@ class SqliteRunRepository:
         enabled = storage.mode is StorageMode.ENABLED
         manifest = self._manifest()
         orbit_derived = snapshot.contact_source is ContactSource.ORBIT_DERIVED
-        # ADR-0002 provenance split: an orbit scenario names an orbit revision and no synthetic
+        # Provenance split: an orbit scenario names an orbit revision and no synthetic
         # provider; a synthetic scenario is the mirror image. The database CHECK enforces the same.
         synthetic_provider_revision = None if orbit_derived else snapshot.source_revision_id[:96]
         orbit_revision_id = snapshot.source_revision_id[:96] if orbit_derived else None

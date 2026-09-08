@@ -1,10 +1,10 @@
 // Exact unit conversions for display.
 //
-// The backend is the source of truth for every number (ADR-0005). These helpers only *display*
+// The backend is the source of truth for every number. These helpers only *display*
 // integer domain quantities; they must never lose precision the way `value / 1_000_000` would for
 // large integers. So the fractional part is computed with integer remainder math, and the
 // unrounded and rounded forms are kept separate: comparisons use the exact form, screens use the
-// rounded one. MB here means 1,000,000 bytes (decimal), never MiB (ADR-0005 §5).
+// rounded one. MB here means 1,000,000 bytes (decimal), never MiB.
 
 const BYTES_PER_KB = 1_000
 const BYTES_PER_MB = 1_000_000
@@ -23,7 +23,7 @@ export function bytesToExactBytes(bytes: number): string {
 
 /**
  * Adaptive decimal byte display: B below 1 KB, then KB / MB / GB (each 1,000× the previous, decimal —
- * MB is 1,000,000 B per ADR-0005, never MiB). The unit is chosen so a non-zero value never collapses
+ * MB is 1,000,000 B, never MiB). The unit is chosen so a non-zero value never collapses
  * to "0.00" — small outputs read as B or KB, while large outputs and the total budget read as MB or
  * GB (spec §3-2). Zero renders "0 B". For the exact integer, use {@link bytesToExactBytes} in detail.
  */

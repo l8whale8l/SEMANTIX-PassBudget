@@ -4,7 +4,7 @@ This adapts the verified pass-finder (`passes.py`, cross-checked against NASA GM
 the frozen orbit-verification setup) to the `ContactProvider` port. It is the only
 production path that turns an orbit assumption and station geometry into contact windows.
 
-Design rules it obeys (ADR-0004):
+Design rules it obeys:
 
 - It is a *second* implementation of the existing port, never a mode of the synthetic provider.
 - No module in `domain/` or `application/` imports it or the engine it wraps; the composition
@@ -12,7 +12,7 @@ Design rules it obeys (ADR-0004):
 - No fallback. If the engine cannot propagate, the run fails with a structured error rather than
   quietly returning synthetic-looking contacts.
 - Floating point stays inside the engine; every value handed back to the domain is an exact
-  integer in a canonical micro-unit, quantised once at this boundary (ADR-0001).
+  integer in a canonical micro-unit, quantised once at this boundary.
 - The same frozen snapshot always yields the same contacts and the same hashes: nothing here reads
   the clock, the environment, the filesystem or the network.
 """
@@ -139,7 +139,7 @@ class OrbitContactProvider:
             )
         except OrbitPropagationError as exc:
             # No fallback to synthetic contacts: a failed propagation is a failed run, and the
-            # error carries the library's numeric code only, never a host path (ADR-0004).
+            # error carries the library's numeric code only, never a host path.
             raise DomainValidationError(
                 ErrorDetail(
                     code="ORBIT_PROPAGATION_FAILED",
