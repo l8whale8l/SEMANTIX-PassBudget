@@ -16,6 +16,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from semantix_passbudget.adapters.memory_repository import InMemoryRunRepository
+from semantix_passbudget.adapters.orbit.provider import OrbitContactProvider
 from semantix_passbudget.adapters.postgres.repository import (
     PersistenceError,
     PostgresRunRepository,
@@ -58,7 +59,11 @@ def engine():  # type: ignore[no-untyped-def]
 
 def _compute(name: str):  # type: ignore[no-untyped-def]
     snapshot = load_fixture(FIXTURES / f"{name}.json").to_domain()
-    service = RunScenarioService(SyntheticContactProvider(), InMemoryRunRepository())
+    service = RunScenarioService(
+        SyntheticContactProvider(),
+        InMemoryRunRepository(),
+        orbit_provider=OrbitContactProvider(),
+    )
     return service.run(snapshot)
 
 
@@ -101,6 +106,22 @@ def test_synthetic_run_stores_no_orbit_revision_and_no_elevation(engine) -> None
             )
         ).scalar_one()
         assert elevations == 0
+
+
+def test_orbit_derived_run_stores_a_typed_orbit_revision(engine) -> None:  # type: ignore[no-untyped-def]
+    run = _compute("PB-GOLDEN-ORB-01")
+    PostgresRunRepository(engine).add(run)
+    with engine.connect() as connection:
+        orbit = connection.execute(
+            text(
+                "SELECT o.orbit_kind, o.earth_radius_m, o.altitude_m, "
+                "o.inclination_udeg, o.raan_udeg, o.argument_of_latitude_udeg "
+                "FROM passbudget.scenario_revision s "
+                "JOIN passbudget.orbit_revision o ON o.revision_id = s.orbit_revision_id "
+                "WHERE s.contact_source = 'ORBIT_DERIVED'"
+            )
+        ).one()
+    assert tuple(orbit) == ("VIRTUAL_CIRCULAR", 6_378_137, 700_000, 98_000_000, 90_000_000, 0)
 
 
 def test_orbit_derived_row_still_requires_a_maximum_elevation(engine) -> None:  # type: ignore[no-untyped-def]

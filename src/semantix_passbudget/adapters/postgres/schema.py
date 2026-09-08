@@ -86,6 +86,28 @@ profile_revision = Table(
     Column("published_at", _ts),
 )
 
+orbit_revision = Table(
+    "orbit_revision",
+    metadata,
+    Column("revision_id", UUID(as_uuid=False), primary_key=True),
+    Column("profile_kind", _enum("profile_kind"), nullable=False),
+    Column("orbit_kind", _enum("orbit_kind"), nullable=False),
+    Column("epoch_at", _ts),
+    Column("reference_frame", String(32)),
+    Column("time_scale", String(16)),
+    Column("propagator_revision", String(96)),
+    Column("tle_line1", String(69)),
+    Column("tle_line2", String(69)),
+    Column("tle_provider", String(128)),
+    Column("tle_retrieved_at", _ts),
+    Column("tle_content_sha256", LargeBinary),
+    Column("earth_radius_m", BIGINT),
+    Column("altitude_m", BIGINT),
+    Column("inclination_udeg", BIGINT),
+    Column("raan_udeg", BIGINT),
+    Column("argument_of_latitude_udeg", BIGINT),
+)
+
 ground_station_revision = Table(
     "ground_station_revision",
     metadata,

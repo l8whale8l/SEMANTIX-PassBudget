@@ -165,6 +165,32 @@ class PostgresRunRepository:
     ) -> None:
         if kind is ProfileKind.SPACECRAFT:
             return  # SPACECRAFT is identity-only in P0; the shared revision is the typed identity.
+        if kind is ProfileKind.ORBIT:
+            tle_digest = payload["tle_content_sha256"]
+            connection.execute(
+                insert(tables.orbit_revision).values(
+                    revision_id=revision_id,
+                    profile_kind=kind.value,
+                    orbit_kind=payload["orbit_kind"],
+                    epoch_at=_instant(payload["epoch_at"]),
+                    reference_frame=payload["reference_frame"],
+                    time_scale=payload["time_scale"],
+                    propagator_revision=payload["propagator_revision"],
+                    tle_line1=payload["tle_line1"],
+                    tle_line2=payload["tle_line2"],
+                    tle_provider=payload["tle_provider"],
+                    tle_retrieved_at=_instant(payload["tle_retrieved_at"]),
+                    tle_content_sha256=(
+                        bytes.fromhex(tle_digest) if tle_digest is not None else None
+                    ),
+                    earth_radius_m=payload["earth_radius_m"],
+                    altitude_m=payload["altitude_m"],
+                    inclination_udeg=payload["inclination_udeg"],
+                    raan_udeg=payload["raan_udeg"],
+                    argument_of_latitude_udeg=payload["argument_of_latitude_udeg"],
+                )
+            )
+            return
         if kind is ProfileKind.GROUND_STATION:
             connection.execute(
                 insert(tables.ground_station_revision).values(
@@ -311,7 +337,7 @@ class PostgresRunRepository:
                 analysis_mode=snapshot.analysis_mode.value,
                 spacecraft_revision_id=revisions[graph.spacecraft_key],
                 spacecraft_profile_kind="SPACECRAFT",
-                orbit_revision_id=(snapshot.source_revision_id[:96] if orbit_derived else None),
+                orbit_revision_id=(revisions[graph.orbit_key] if graph.orbit_key else None),
                 policy_revision_id=(
                     revisions[graph.policy_key] if graph.policy_key is not None else None
                 ),

@@ -7,12 +7,16 @@ stable key derived from the snapshot, never a random value and never a host-spec
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from typing import Any
 
 from semantix_passbudget.domain.enums import (
     AnalysisMode,
     CapacityProvider,
+    ContactSource,
+    OrbitKind,
     ProfileKind,
     SegmentationKind,
 )
@@ -53,6 +57,7 @@ class PayloadSpec:
 class CatalogGraph:
     profiles: tuple[ProfileSpec, ...]
     spacecraft_key: str
+    orbit_key: str | None
     policy_key: str | None
     stations: tuple[StationSpec, ...]
     payloads: tuple[PayloadSpec, ...]
@@ -126,6 +131,67 @@ def _payload_type_payload(payload: Payload) -> dict[str, Any]:
     }
 
 
+def _orbit_profile(snapshot: ScenarioSnapshot) -> ProfileSpec | None:
+    """Represent an orbit-derived input in the accepted relational orbit profile shape."""
+    if snapshot.contact_source is not ContactSource.ORBIT_DERIVED or snapshot.orbit is None:
+        return None
+    orbit = snapshot.orbit
+    if orbit.kind is OrbitKind.GP_TLE:
+        assert orbit.tle is not None
+        tle_bytes = f"{orbit.tle.line_1}\n{orbit.tle.line_2}\n".encode("ascii")
+        payload: dict[str, Any] = {
+            "orbit_kind": "GP_TLE",
+            "epoch_at": None,
+            "reference_frame": "TEME",
+            "time_scale": "UTC",
+            "propagator_revision": snapshot.source_revision_id[:96],
+            "tle_line1": orbit.tle.line_1,
+            "tle_line2": orbit.tle.line_2,
+            "tle_provider": "USER_INPUT",
+            "tle_retrieved_at": None,
+            "tle_content_sha256": hashlib.sha256(tle_bytes).hexdigest(),
+            "earth_radius_m": None,
+            "altitude_m": None,
+            "inclination_udeg": None,
+            "raan_udeg": None,
+            "argument_of_latitude_udeg": None,
+        }
+    else:
+        assert orbit.two_body is not None
+        elements = orbit.two_body
+        earth_radius_m = 6_378_137
+        semi_major_axis_m = elements.semi_major_axis_mm // 1_000
+        payload = {
+            "orbit_kind": "VIRTUAL_CIRCULAR",
+            "epoch_at": elements.epoch.isoformat(),
+            "reference_frame": "EME2000",
+            "time_scale": "UTC",
+            "propagator_revision": snapshot.source_revision_id[:96],
+            "tle_line1": None,
+            "tle_line2": None,
+            "tle_provider": None,
+            "tle_retrieved_at": None,
+            "tle_content_sha256": None,
+            "earth_radius_m": earth_radius_m,
+            "altitude_m": semi_major_axis_m - earth_radius_m,
+            "inclination_udeg": elements.inclination_udeg,
+            "raan_udeg": elements.raan_udeg,
+            "argument_of_latitude_udeg": (
+                elements.argument_of_perigee_udeg + elements.true_anomaly_udeg
+            )
+            % 360_000_000,
+        }
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()[:32]
+    return ProfileSpec(
+        stable_key=f"ORB-{digest}",
+        kind=ProfileKind.ORBIT,
+        name=f"{snapshot.fixture_id} orbit",
+        payload=payload,
+    )
+
+
 def decompose_snapshot(snapshot: ScenarioSnapshot) -> CatalogGraph:
     profiles: list[ProfileSpec] = []
     spacecraft_key = f"{snapshot.fixture_id}-SC"
@@ -140,6 +206,11 @@ def decompose_snapshot(snapshot: ScenarioSnapshot) -> CatalogGraph:
             },
         )
     )
+    orbit_profile = _orbit_profile(snapshot)
+    orbit_key: str | None = None
+    if orbit_profile is not None:
+        profiles.append(orbit_profile)
+        orbit_key = orbit_profile.stable_key
     policy_key: str | None = None
     if snapshot.analysis_mode is AnalysisMode.QUEUE_AWARE and snapshot.policy_revision_id:
         policy_key = f"POLICY-{snapshot.policy_revision_id}"
@@ -253,6 +324,7 @@ def decompose_snapshot(snapshot: ScenarioSnapshot) -> CatalogGraph:
     return CatalogGraph(
         profiles=tuple(sorted(profiles, key=lambda item: (item.kind.value, item.stable_key))),
         spacecraft_key=spacecraft_key,
+        orbit_key=orbit_key,
         policy_key=policy_key,
         stations=tuple(stations),
         payloads=tuple(payloads),
