@@ -64,7 +64,7 @@ def test_the_sqlite_ddl_is_declared_for_the_wheel() -> None:
 
 @pytest.mark.parametrize(
     "document",
-    ["README.md"],
+    ["README.md", "README_EN.md"],
 )
 def test_relative_document_links_resolve(document: str) -> None:
     text = (ROOT / document).read_text(encoding="utf-8")

@@ -1,5 +1,7 @@
 # SEMANTIX PassBudget
 
+[한국어](README.md) | [English](README_EN.md)
+
 > 제한된 위성 접촉 시간 안에서 **얼마나 보낼 수 있고, 무엇을 먼저 보낼지** 판단하는 오픈소스 다운링크 계획 도구입니다.
 
 ![SEMANTIX PassBudget 실제 실행 화면](assets/passbudget-ui.png)
