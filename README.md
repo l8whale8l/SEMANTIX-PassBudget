@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/passbudget-icon.png" alt="SEMANTIX PassBudget 아이콘" width="200">
+</p>
+
 # SEMANTIX PassBudget
 
 [한국어](README.md) | [English](README_EN.md)
