@@ -16,6 +16,12 @@ export default defineConfig({
       '/health': { target: BACKEND, changeOrigin: true },
     },
   },
+  preview: {
+    proxy: {
+      '/api': { target: BACKEND, changeOrigin: true },
+      '/health': { target: BACKEND, changeOrigin: true },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,
